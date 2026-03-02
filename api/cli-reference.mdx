@@ -1,0 +1,393 @@
+---
+title: 'CLI Reference'
+description: 'Complete command-line interface reference for PageIndex'
+---
+
+## Overview
+
+The PageIndex CLI provides a command-line interface for processing PDF and Markdown documents. The main entry point is `run_pageindex.py`.
+
+**Source:** `run_pageindex.py`
+
+## Basic Usage
+
+### Process PDF Document
+
+```bash
+python3 run_pageindex.py --pdf_path /path/to/document.pdf
+```
+
+### Process Markdown Document
+
+```bash
+python3 run_pageindex.py --md_path /path/to/document.md
+```
+
+<Note>
+  You must specify either `--pdf_path` or `--md_path`, but not both.
+</Note>
+
+## Global Options
+
+These options apply to both PDF and Markdown processing:
+
+<ParamField path="--model" type="str" default="gpt-4o-2024-11-20">
+  OpenAI model to use for processing
+  
+  **Example:**
+  ```bash
+  python3 run_pageindex.py --pdf_path doc.pdf --model gpt-4o
+  ```
+</ParamField>
+
+<ParamField path="--if-add-node-id" type="str" default="yes">
+  Whether to add sequential node IDs. Values: `yes` or `no`
+  
+  **Example:**
+  ```bash
+  python3 run_pageindex.py --pdf_path doc.pdf --if-add-node-id no
+  ```
+</ParamField>
+
+<ParamField path="--if-add-node-summary" type="str" default="yes">
+  Whether to generate AI summaries for each node. Values: `yes` or `no`
+  
+  **Example:**
+  ```bash
+  python3 run_pageindex.py --pdf_path doc.pdf --if-add-node-summary yes
+  ```
+</ParamField>
+
+<ParamField path="--if-add-doc-description" type="str" default="no">
+  Whether to generate a document description. Values: `yes` or `no`
+  
+  Only works if `--if-add-node-summary yes`
+  
+  **Example:**
+  ```bash
+  python3 run_pageindex.py --pdf_path doc.pdf --if-add-doc-description yes
+  ```
+</ParamField>
+
+<ParamField path="--if-add-node-text" type="str" default="no">
+  Whether to include full text in nodes. Values: `yes` or `no`
+  
+  **Example:**
+  ```bash
+  python3 run_pageindex.py --pdf_path doc.pdf --if-add-node-text yes
+  ```
+</ParamField>
+
+## PDF-Specific Options
+
+These options only apply when using `--pdf_path`:
+
+<ParamField path="--toc-check-pages" type="int" default="20">
+  Number of pages to check for table of contents
+  
+  **Example:**
+  ```bash
+  python3 run_pageindex.py --pdf_path doc.pdf --toc-check-pages 30
+  ```
+</ParamField>
+
+<ParamField path="--max-pages-per-node" type="int" default="10">
+  Maximum number of pages per node
+  
+  **Example:**
+  ```bash
+  python3 run_pageindex.py --pdf_path doc.pdf --max-pages-per-node 15
+  ```
+</ParamField>
+
+<ParamField path="--max-tokens-per-node" type="int" default="20000">
+  Maximum number of tokens per node
+  
+  **Example:**
+  ```bash
+  python3 run_pageindex.py --pdf_path doc.pdf --max-tokens-per-node 25000
+  ```
+</ParamField>
+
+## Markdown-Specific Options
+
+These options only apply when using `--md_path`:
+
+<ParamField path="--if-thinning" type="str" default="no">
+  Whether to apply tree thinning. Values: `yes` or `no`
+  
+  Merges small nodes (below threshold) with their parents
+  
+  **Example:**
+  ```bash
+  python3 run_pageindex.py --md_path doc.md --if-thinning yes
+  ```
+</ParamField>
+
+<ParamField path="--thinning-threshold" type="int" default="5000">
+  Minimum token threshold for nodes when thinning is enabled
+  
+  **Example:**
+  ```bash
+  python3 run_pageindex.py --md_path doc.md --if-thinning yes --thinning-threshold 3000
+  ```
+</ParamField>
+
+<ParamField path="--summary-token-threshold" type="int" default="200">
+  Token threshold for generating summaries vs. using full text
+  
+  **Example:**
+  ```bash
+  python3 run_pageindex.py --md_path doc.md --summary-token-threshold 300
+  ```
+</ParamField>
+
+## Complete Examples
+
+### PDF: Fast Processing (No Summaries)
+
+```bash
+python3 run_pageindex.py \
+  --pdf_path document.pdf \
+  --if-add-node-summary no \
+  --if-add-doc-description no
+```
+
+### PDF: Full-Featured Processing
+
+```bash
+python3 run_pageindex.py \
+  --pdf_path financial_report.pdf \
+  --model gpt-4o-2024-11-20 \
+  --toc-check-pages 30 \
+  --max-pages-per-node 15 \
+  --max-tokens-per-node 25000 \
+  --if-add-node-id yes \
+  --if-add-node-summary yes \
+  --if-add-doc-description yes \
+  --if-add-node-text yes
+```
+
+### PDF: Minimal (Structure Only)
+
+```bash
+python3 run_pageindex.py \
+  --pdf_path document.pdf \
+  --if-add-node-id no \
+  --if-add-node-summary no
+```
+
+### Markdown: Basic Processing
+
+```bash
+python3 run_pageindex.py \
+  --md_path documentation.md \
+  --model gpt-4o
+```
+
+### Markdown: With Thinning and Summaries
+
+```bash
+python3 run_pageindex.py \
+  --md_path large_doc.md \
+  --if-thinning yes \
+  --thinning-threshold 5000 \
+  --if-add-node-summary yes \
+  --summary-token-threshold 200 \
+  --if-add-doc-description yes
+```
+
+### Markdown: Full-Featured
+
+```bash
+python3 run_pageindex.py \
+  --md_path manual.md \
+  --model gpt-4o-2024-11-20 \
+  --if-thinning yes \
+  --thinning-threshold 3000 \
+  --if-add-node-summary yes \
+  --summary-token-threshold 200 \
+  --if-add-doc-description yes \
+  --if-add-node-text yes \
+  --if-add-node-id yes
+```
+
+## Output
+
+The CLI saves results to the `./results/` directory:
+
+- **PDF:** `./results/{pdf_name}_structure.json`
+- **Markdown:** `./results/{md_name}_structure.json`
+
+**Example output:**
+```bash
+$ python3 run_pageindex.py --pdf_path report.pdf
+Parsing PDF...
+Processing...
+Parsing done, saving to file...
+Tree structure saved to: ./results/report_structure.json
+```
+
+## File Format Validation
+
+The CLI validates input files:
+
+### PDF Files
+- Must have `.pdf` extension
+- File must exist at specified path
+- Must be a valid PDF
+
+### Markdown Files
+- Must have `.md` or `.markdown` extension
+- File must exist at specified path
+
+**Error Examples:**
+```bash
+# Invalid: wrong extension
+$ python3 run_pageindex.py --pdf_path document.txt
+ValueError: PDF file must have .pdf extension
+
+# Invalid: file not found
+$ python3 run_pageindex.py --pdf_path missing.pdf
+ValueError: PDF file not found: missing.pdf
+
+# Invalid: both file types specified
+$ python3 run_pageindex.py --pdf_path doc.pdf --md_path doc.md
+ValueError: Only one of --pdf_path or --md_path can be specified
+```
+
+## Environment Variables
+
+The CLI requires the OpenAI API key to be set:
+
+### Using .env File
+
+Create a `.env` file in the project root:
+
+```bash
+CHATGPT_API_KEY=your_openai_key_here
+```
+
+### Using Shell Export
+
+```bash
+export CHATGPT_API_KEY=your_openai_key_here
+python3 run_pageindex.py --pdf_path document.pdf
+```
+
+## Performance Tips
+
+### Fast Processing (Seconds)
+```bash
+python3 run_pageindex.py \
+  --pdf_path doc.pdf \
+  --if-add-node-summary no
+```
+
+### Balanced (1-3 Minutes)
+```bash
+python3 run_pageindex.py \
+  --pdf_path doc.pdf \
+  --if-add-node-summary yes \
+  --if-add-node-text no
+```
+
+### Full-Featured (3-10 Minutes)
+```bash
+python3 run_pageindex.py \
+  --pdf_path doc.pdf \
+  --if-add-node-summary yes \
+  --if-add-doc-description yes \
+  --if-add-node-text yes
+```
+
+## Common Use Cases
+
+### Research Papers
+```bash
+python3 run_pageindex.py \
+  --pdf_path paper.pdf \
+  --toc-check-pages 15 \
+  --max-pages-per-node 8 \
+  --if-add-node-summary yes
+```
+
+### Financial Reports
+```bash
+python3 run_pageindex.py \
+  --pdf_path 10k_filing.pdf \
+  --toc-check-pages 30 \
+  --max-pages-per-node 20 \
+  --max-tokens-per-node 30000 \
+  --if-add-node-summary yes
+```
+
+### Technical Manuals
+```bash
+python3 run_pageindex.py \
+  --pdf_path manual.pdf \
+  --toc-check-pages 25 \
+  --if-add-node-text yes \
+  --if-add-node-summary yes
+```
+
+### Documentation Sites (Markdown)
+```bash
+python3 run_pageindex.py \
+  --md_path README.md \
+  --if-thinning yes \
+  --thinning-threshold 4000 \
+  --if-add-node-summary yes
+```
+
+## Batch Processing
+
+Process multiple files with a shell script:
+
+```bash
+#!/bin/bash
+# process_all.sh
+
+for file in pdfs/*.pdf; do
+  echo "Processing $file..."
+  python3 run_pageindex.py --pdf_path "$file" --if-add-node-summary yes
+done
+```
+
+## Troubleshooting
+
+### "API key not found"
+```bash
+# Set API key in .env file
+echo "CHATGPT_API_KEY=sk-..." > .env
+```
+
+### "Module not found"
+```bash
+# Install dependencies
+pip3 install --upgrade -r requirements.txt
+```
+
+### "Out of memory"
+```bash
+# Reduce token limits
+python3 run_pageindex.py \
+  --pdf_path large.pdf \
+  --max-tokens-per-node 15000 \
+  --if-add-node-text no
+```
+
+### "Processing too slow"
+```bash
+# Disable summaries
+python3 run_pageindex.py \
+  --pdf_path doc.pdf \
+  --if-add-node-summary no
+```
+
+## See Also
+
+- [page_index()](/api/page-index) - Python API equivalent
+- [page_index_main()](/api/page-index-main) - Lower-level Python API
+- [md_to_tree()](/api/md-to-tree) - Markdown processing function
+- [ConfigLoader](/api/config) - Configuration management

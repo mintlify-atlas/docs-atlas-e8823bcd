@@ -1,0 +1,358 @@
+---
+title: Document Search
+description: Learn how to search across multiple documents using metadata, semantic search, or description-based strategies
+---
+
+PageIndex enables reasoning-based RAG within a single document by default. For users who need to search across multiple documents, PageIndex provides three best-practice workflows for different scenarios.
+
+## Search Strategies
+
+Choose the search strategy that best fits your use case:
+
+- **Search by Metadata**: For documents that can be distinguished by metadata (financial reports, legal documents, medical records)
+- **Search by Semantics**: For documents with different semantic content or covering diverse topics
+- **Search by Description**: A lightweight strategy for a small number of documents
+
+<Tabs>
+  <Tab title="Metadata Search">
+    <Note>
+      PageIndex with metadata support is in closed beta. Fill out [this form](https://ii2abc2jejf.typeform.com/to/meB40zV0) to request early access to this feature.
+    </Note>
+
+    ## When to Use
+
+    Use metadata search when your documents can be easily distinguished by structured attributes:
+
+    - Financial reports categorized by company and time period
+    - Legal documents categorized by case type
+    - Medical records categorized by patient or condition
+
+    This method leverages "Query to SQL" for efficient document retrieval.
+
+    ## Implementation Pipeline
+
+    <Steps>
+      <Step title="Generate PageIndex Trees">
+        Upload all documents into PageIndex to get their `doc_id`.
+
+        ```python
+        # Upload documents and get doc_ids
+        doc_ids = []
+        for document in documents:
+            response = pageindex.upload(document)
+            doc_ids.append(response['doc_id'])
+        ```
+      </Step>
+
+      <Step title="Set Up SQL Tables">
+        Store documents along with their metadata and the PageIndex `doc_id` in a database table.
+
+        ```sql
+        CREATE TABLE documents (
+            id SERIAL PRIMARY KEY,
+            doc_id VARCHAR(255) NOT NULL,
+            doc_name VARCHAR(255),
+            company VARCHAR(255),
+            report_type VARCHAR(100),
+            fiscal_year INTEGER,
+            fiscal_quarter VARCHAR(10)
+        );
+        ```
+      </Step>
+
+      <Step title="Query to SQL">
+        Use an LLM to transform a user's retrieval request into a SQL query to fetch relevant documents.
+
+        ```python
+        def query_to_sql(user_query: str, schema: str) -> str:
+            prompt = f"""
+            Given the database schema and user query, generate a SQL query.
+            
+            Schema:
+            {schema}
+            
+            User Query: {user_query}
+            
+            Generate only the SQL query, no explanation.
+            """
+            return llm.generate(prompt)
+
+        # Example usage
+        sql_query = query_to_sql(
+            "Find Apple's Q4 2023 financial reports",
+            schema
+        )
+        ```
+      </Step>
+
+      <Step title="Retrieve with PageIndex">
+        Use the PageIndex `doc_id` of the retrieved documents to perform further retrieval via the PageIndex retrieval API.
+
+        ```python
+        # Execute SQL query to get relevant doc_ids
+        results = db.execute(sql_query)
+        doc_ids = [row['doc_id'] for row in results]
+
+        # Retrieve detailed information using PageIndex
+        for doc_id in doc_ids:
+            response = pageindex.retrieve(
+                doc_id=doc_id,
+                query=user_query
+            )
+            print(response)
+        ```
+      </Step>
+    </Steps>
+  </Tab>
+
+  <Tab title="Semantic Search">
+    ## When to Use
+
+    Use semantic search for documents that cover diverse topics where vector-based similarity is effective. This method differs from classic vector search by incorporating document-level scoring.
+
+    ## Implementation Pipeline
+
+    <Steps>
+      <Step title="Chunking and Embedding">
+        Divide the documents into chunks, choose an embedding model to convert the chunks into vectors and store each vector with its corresponding `doc_id` in a vector database.
+
+        ```python
+        from openai import OpenAI
+        import chromadb
+
+        client = OpenAI()
+        chroma_client = chromadb.Client()
+        collection = chroma_client.create_collection("documents")
+
+        def chunk_document(text: str, chunk_size: int = 512) -> list[str]:
+            """Split document into chunks"""
+            words = text.split()
+            chunks = []
+            for i in range(0, len(words), chunk_size):
+                chunk = ' '.join(words[i:i + chunk_size])
+                chunks.append(chunk)
+            return chunks
+
+        # Process documents
+        for doc_id, document in documents.items():
+            chunks = chunk_document(document)
+            
+            # Generate embeddings
+            embeddings = client.embeddings.create(
+                input=chunks,
+                model="text-embedding-3-small"
+            )
+            
+            # Store in vector database
+            for i, (chunk, embedding) in enumerate(zip(chunks, embeddings.data)):
+                collection.add(
+                    ids=[f"{doc_id}_chunk_{i}"],
+                    embeddings=[embedding.embedding],
+                    metadatas=[{"doc_id": doc_id, "chunk_index": i}],
+                    documents=[chunk]
+                )
+        ```
+      </Step>
+
+      <Step title="Vector Search">
+        For each query, conduct a vector-based search to get top-K chunks with their corresponding documents.
+
+        ```python
+        def vector_search(query: str, top_k: int = 20):
+            # Generate query embedding
+            query_embedding = client.embeddings.create(
+                input=[query],
+                model="text-embedding-3-small"
+            )
+            
+            # Search vector database
+            results = collection.query(
+                query_embeddings=[query_embedding.data[0].embedding],
+                n_results=top_k
+            )
+            
+            return results
+        ```
+      </Step>
+
+      <Step title="Compute Document Score">
+        For each document, calculate a relevance score using the following formula:
+
+        $$
+        \text{DocScore}=\frac{1}{\sqrt{N+1}}\sum_{n=1}^N \text{ChunkScore}(n)
+        $$
+
+        Where:
+        - N is the number of content chunks associated with each document
+        - ChunkScore(n) is the relevance score of chunk n
+        - The sum aggregates relevance from all related chunks
+        - The +1 inside the square root ensures the formula handles nodes with zero chunks
+        - Using the square root in the denominator allows the score to increase with the number of relevant chunks, but with diminishing returns
+
+        This scoring favors documents with fewer, highly relevant chunks over those with many weakly relevant ones.
+
+        ```python
+        import math
+        from collections import defaultdict
+
+        def compute_document_scores(search_results):
+            # Group chunks by document
+            doc_chunks = defaultdict(list)
+            for i, metadata in enumerate(search_results['metadatas'][0]):
+                doc_id = metadata['doc_id']
+                score = search_results['distances'][0][i]
+                doc_chunks[doc_id].append(score)
+            
+            # Calculate document scores
+            doc_scores = {}
+            for doc_id, chunk_scores in doc_chunks.items():
+                N = len(chunk_scores)
+                score_sum = sum(chunk_scores)
+                doc_scores[doc_id] = score_sum / math.sqrt(N + 1)
+            
+            return sorted(doc_scores.items(), key=lambda x: x[1], reverse=True)
+        ```
+      </Step>
+
+      <Step title="Retrieve with PageIndex">
+        Select the documents with the highest DocScore, then use their `doc_id` to perform further retrieval via the PageIndex retrieval API.
+
+        ```python
+        # Get vector search results
+        search_results = vector_search(user_query)
+        
+        # Compute document scores
+        ranked_docs = compute_document_scores(search_results)
+        
+        # Retrieve top documents using PageIndex
+        top_n = 3
+        for doc_id, score in ranked_docs[:top_n]:
+            response = pageindex.retrieve(
+                doc_id=doc_id,
+                query=user_query
+            )
+            print(f"Document: {doc_id} (Score: {score})")
+            print(response)
+        ```
+      </Step>
+    </Steps>
+  </Tab>
+
+  <Tab title="Description Search">
+    ## When to Use
+
+    Use description-based search for documents that don't have metadata. This is a lightweight approach that works best with a small number of documents.
+
+    ## Implementation Pipeline
+
+    <Steps>
+      <Step title="Generate PageIndex Trees">
+        Upload all documents into PageIndex to get their `doc_id` and tree structure.
+
+        ```python
+        # Upload documents and retrieve tree structures
+        document_trees = {}
+        for document in documents:
+            response = pageindex.upload(document)
+            doc_id = response['doc_id']
+            
+            # Get tree structure
+            tree = pageindex.get_tree(doc_id)
+            document_trees[doc_id] = {
+                'name': document.name,
+                'tree': tree
+            }
+        ```
+      </Step>
+
+      <Step title="Generate Descriptions">
+        Generate a description for each document based on its PageIndex tree structure and node summaries.
+
+        ```python
+        def generate_description(tree_structure: dict) -> str:
+            prompt = f"""
+            You are given a table of contents structure of a document. 
+            Your task is to generate a one-sentence description for the document that makes it easy to distinguish from other documents.
+                
+            Document tree structure: {tree_structure}
+            
+            Directly return the description, do not include any other text.
+            """
+            
+            return llm.generate(prompt)
+
+        # Generate descriptions for all documents
+        descriptions = {}
+        for doc_id, doc_info in document_trees.items():
+            description = generate_description(doc_info['tree'])
+            descriptions[doc_id] = {
+                'name': doc_info['name'],
+                'description': description
+            }
+        ```
+      </Step>
+
+      <Step title="Search with LLM">
+        Use an LLM to select relevant documents by comparing the user query against the generated descriptions.
+
+        ```python
+        def search_by_description(query: str, descriptions: dict) -> list[str]:
+            # Prepare documents list
+            docs_list = [
+                {
+                    "doc_id": doc_id,
+                    "doc_name": info['name'],
+                    "doc_description": info['description']
+                }
+                for doc_id, info in descriptions.items()
+            ]
+            
+            prompt = f""" 
+            You are given a list of documents with their IDs, file names, and descriptions. Your task is to select documents that may contain information relevant to answering the user query.
+            
+            Query: {query}
+            
+            Documents: {docs_list}
+            
+            Response Format:
+            {{
+                "thinking": "<Your reasoning for document selection>",
+                "answer": <Python list of relevant doc_ids>, e.g. ['doc_id1', 'doc_id2']. Return [] if no documents are relevant.
+            }}
+            
+            Return only the JSON structure, with no additional output.
+            """
+            
+            response = llm.generate(prompt)
+            result = json.loads(response)
+            return result['answer']
+        ```
+      </Step>
+
+      <Step title="Retrieve with PageIndex">
+        Use the PageIndex `doc_id` of the retrieved documents to perform further retrieval via the PageIndex retrieval API.
+
+        ```python
+        # Search for relevant documents
+        relevant_doc_ids = search_by_description(user_query, descriptions)
+        
+        # Retrieve detailed information using PageIndex
+        for doc_id in relevant_doc_ids:
+            response = pageindex.retrieve(
+                doc_id=doc_id,
+                query=user_query
+            )
+            print(f"Document: {descriptions[doc_id]['name']}")
+            print(response)
+        ```
+      </Step>
+    </Steps>
+  </Tab>
+</Tabs>
+
+## Need Help?
+
+Contact us if you need any advice on conducting document searches for your use case.
+
+- [Join our Discord](https://discord.gg/VuXuf29EUj)
+- [Leave us a message](https://ii2abc2jejf.typeform.com/to/meB40zV0)

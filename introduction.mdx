@@ -1,0 +1,113 @@
+---
+title: Introduction
+description: Next-generation vectorless, reasoning-based RAG that mimics how humans navigate complex documents
+---
+
+<img className="block dark:hidden" src="https://github.com/user-attachments/assets/46201e72-675b-43bc-bfbd-081cc6b65a1d" alt="PageIndex Hero Light" />
+<img className="hidden dark:block" src="https://github.com/user-attachments/assets/46201e72-675b-43bc-bfbd-081cc6b65a1d" alt="PageIndex Hero Dark" />
+
+## Reasoning-based RAG • No Vector DB • No Chunking • Human-like Retrieval
+
+Are you frustrated with vector database retrieval accuracy for long professional documents? Traditional vector-based RAG relies on semantic **similarity** rather than true **relevance**. But **similarity ≠ relevance** — what we truly need in retrieval is **relevance**, and that requires **reasoning**.
+
+Inspired by AlphaGo, **PageIndex** is a **vectorless**, **reasoning-based RAG** system that builds a **hierarchical tree index** from long documents and uses LLMs to **reason** over that index for **agentic, context-aware retrieval**. It simulates how human experts navigate and extract knowledge from complex documents through tree search.
+
+<CardGroup cols={2}>
+  <Card
+    title="Quick Start"
+    icon="rocket"
+    href="/quickstart"
+  >
+    Get PageIndex running on your first PDF in under 5 minutes
+  </Card>
+  <Card
+    title="Installation"
+    icon="download"
+    href="/installation"
+  >
+    Install PageIndex and set up your environment
+  </Card>
+  <Card
+    title="Tree Structure"
+    icon="sitemap"
+    href="/concepts/tree-structure"
+  >
+    Understand the hierarchical tree index that powers PageIndex
+  </Card>
+  <Card
+    title="API Reference"
+    icon="code"
+    href="/api/page-index"
+  >
+    Explore configuration options and advanced parameters
+  </Card>
+</CardGroup>
+
+## How PageIndex Works
+
+PageIndex performs retrieval in two steps:
+
+1. **Generate a hierarchical tree index** - Similar to a "Table of Contents" but optimized for LLMs
+2. **Perform reasoning-based retrieval** - Navigate the tree through LLM-powered tree search
+
+<img src="https://docs.pageindex.ai/images/cookbook/vectorless-rag.png" alt="PageIndex Workflow" />
+
+## Core Features
+
+Compared to traditional vector-based RAG, PageIndex features:
+
+<CardGroup cols={2}>
+  <Card title="No Vector DB" icon="database">
+    Uses document structure and LLM reasoning for retrieval, instead of vector similarity search
+  </Card>
+  <Card title="No Chunking" icon="scissors">
+    Documents are organized into natural sections, not artificial chunks
+  </Card>
+  <Card title="Human-like Retrieval" icon="brain">
+    Simulates how human experts navigate and extract knowledge from complex documents
+  </Card>
+  <Card title="Better Explainability" icon="lightbulb">
+    Retrieval is based on reasoning — traceable and interpretable with page and section references
+  </Card>
+</CardGroup>
+
+## State-of-the-Art Performance
+
+PageIndex powers a reasoning-based RAG system that achieved **98.7% accuracy** on FinanceBench, demonstrating superior performance over vector-based RAG solutions in professional document analysis.
+
+<Note>
+  See the [Mafin 2.5 benchmark results](https://github.com/VectifyAI/Mafin2.5-FinanceBench) for detailed comparisons and performance metrics.
+</Note>
+
+## Deployment Options
+
+<CardGroup cols={3}>
+  <Card title="Self-Host" icon="server">
+    Run locally with the open-source package
+  </Card>
+  <Card title="Cloud Service" icon="cloud">
+    Try instantly with the Chat Platform or integrate via MCP/API
+  </Card>
+  <Card title="Enterprise" icon="building">
+    Private or on-prem deployment with dedicated support
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Quick Start Guide"
+    icon="play"
+    href="/quickstart"
+  >
+    Generate your first PageIndex tree structure in minutes
+  </Card>
+  <Card
+    title="Vectorless RAG Cookbook"
+    icon="book"
+    href="/cookbook/vectorless-rag-pageindex"
+  >
+    See a minimal, hands-on example of reasoning-based RAG
+  </Card>
+</CardGroup>

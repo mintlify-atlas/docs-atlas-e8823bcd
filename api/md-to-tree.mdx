@@ -1,0 +1,291 @@
+---
+title: 'md_to_tree()'
+description: 'Generate hierarchical tree structure from Markdown documents'
+---
+
+## Function Signature
+
+```python
+async def md_to_tree(
+    md_path,
+    if_thinning=False,
+    min_token_threshold=None,
+    if_add_node_summary='no',
+    summary_token_threshold=None,
+    model=None,
+    if_add_doc_description='no',
+    if_add_node_text='no',
+    if_add_node_id='yes'
+)
+```
+
+**Source:** `pageindex/page_index_md.py:243`
+
+## Description
+
+The `md_to_tree()` function generates a PageIndex tree structure from Markdown documents. It analyzes Markdown headers (`#`, `##`, `###`, etc.) to build a hierarchical structure similar to the PDF processing, but optimized for Markdown's inherent structure.
+
+**Important:** This function is asynchronous and must be called with `asyncio.run()` or `await`.
+
+<Note>
+  Markdown files must use proper header hierarchy with `#` symbols. If your Markdown was converted from PDF or HTML, ensure the conversion tool preserved the original heading structure. For best results with converted documents, use [PageIndex OCR](https://pageindex.ai/blog/ocr).
+</Note>
+
+## Parameters
+
+<ParamField path="md_path" type="str" required>
+  Path to the Markdown file. Must be a valid file path ending in `.md` or `.markdown`.
+</ParamField>
+
+<ParamField path="if_thinning" type="bool" default="False">
+  Whether to apply tree thinning. When enabled, small nodes (below `min_token_threshold`) are merged with their parent nodes to simplify the tree structure.
+</ParamField>
+
+<ParamField path="min_token_threshold" type="int" default="None">
+  Minimum token count for a node when thinning is enabled. Nodes with fewer tokens are merged with their parents. Only used if `if_thinning=True`.
+</ParamField>
+
+<ParamField path="if_add_node_summary" type="str" default="no">
+  Whether to generate AI summaries for each node. Valid values: `"yes"` or `"no"`. For leaf nodes, creates `summary` field. For parent nodes, creates `prefix_summary` field.
+</ParamField>
+
+<ParamField path="summary_token_threshold" type="int" default="None">
+  Token threshold for summary generation. If a node's text is shorter than this threshold, the full text is used instead of generating a summary. Only used if `if_add_node_summary="yes"`.
+</ParamField>
+
+<ParamField path="model" type="str" default="None">
+  OpenAI model to use for summary generation and token counting. Examples: `"gpt-4o-2024-11-20"`, `"gpt-4o"`, `"gpt-4.1"`
+</ParamField>
+
+<ParamField path="if_add_doc_description" type="str" default="no">
+  Whether to generate a one-sentence description for the entire document. Valid values: `"yes"` or `"no"`. Only works if `if_add_node_summary="yes"`.
+</ParamField>
+
+<ParamField path="if_add_node_text" type="str" default="no">
+  Whether to include full text content in each node. Valid values: `"yes"` or `"no"`
+</ParamField>
+
+<ParamField path="if_add_node_id" type="str" default="yes">
+  Whether to add sequential node IDs to the tree structure. Valid values: `"yes"` or `"no"`
+</ParamField>
+
+## Return Value
+
+<ResponseField name="result" type="dict">
+  Dictionary containing the Markdown structure:
+  
+  <Expandable title="Return structure">
+    <ResponseField name="doc_name" type="str">
+      Document name (filename without extension)
+    </ResponseField>
+    
+    <ResponseField name="doc_description" type="str" optional>
+      One-sentence AI-generated description (only if `if_add_doc_description="yes"` and `if_add_node_summary="yes"`)
+    </ResponseField>
+    
+    <ResponseField name="structure" type="list[dict]">
+      Hierarchical tree structure. Each node contains:
+      
+      <Expandable title="Node structure">
+        <ResponseField name="title" type="str">
+          Header text from Markdown
+        </ResponseField>
+        
+        <ResponseField name="node_id" type="str" optional>
+          Sequential identifier (e.g., "0001") - only if `if_add_node_id="yes"`
+        </ResponseField>
+        
+        <ResponseField name="line_num" type="int">
+          Line number where the header appears in the Markdown file (1-indexed)
+        </ResponseField>
+        
+        <ResponseField name="text" type="str" optional>
+          Full text content from this header to the next header - only if `if_add_node_text="yes"`
+        </ResponseField>
+        
+        <ResponseField name="summary" type="str" optional>
+          AI-generated summary (leaf nodes) - only if `if_add_node_summary="yes"`
+        </ResponseField>
+        
+        <ResponseField name="prefix_summary" type="str" optional>
+          AI-generated summary (parent nodes) - only if `if_add_node_summary="yes"`
+        </ResponseField>
+        
+        <ResponseField name="nodes" type="list[dict]" optional>
+          Child nodes (sub-headers) with the same structure
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Example Usage
+
+### Basic Usage
+
+```python
+import asyncio
+from pageindex.page_index_md import md_to_tree
+
+# Process Markdown with default settings
+result = asyncio.run(md_to_tree(
+    md_path="document.md"
+))
+
+print(f"Document: {result['doc_name']}")
+for node in result['structure']:
+    print(f"- {node['title']} (line {node['line_num']})")
+```
+
+### With Summaries and Description
+
+```python
+import asyncio
+from pageindex.page_index_md import md_to_tree
+
+result = asyncio.run(md_to_tree(
+    md_path="documentation.md",
+    model="gpt-4o-2024-11-20",
+    if_add_node_summary="yes",
+    summary_token_threshold=200,
+    if_add_doc_description="yes"
+))
+
+print(f"Document: {result['doc_name']}")
+print(f"Description: {result.get('doc_description', 'N/A')}")
+
+for node in result['structure']:
+    summary = node.get('summary') or node.get('prefix_summary', 'N/A')
+    print(f"\n{node['title']}")
+    print(f"Summary: {summary}")
+```
+
+### With Tree Thinning
+
+```python
+import asyncio
+from pageindex.page_index_md import md_to_tree
+
+# Merge small sections into parents
+result = asyncio.run(md_to_tree(
+    md_path="large_document.md",
+    if_thinning=True,
+    min_token_threshold=5000,
+    model="gpt-4o-2024-11-20"
+))
+
+print(f"Generated {len(result['structure'])} top-level sections")
+```
+
+### Full-Featured Processing
+
+```python
+import asyncio
+from pageindex.page_index_md import md_to_tree
+
+result = asyncio.run(md_to_tree(
+    md_path="technical_manual.md",
+    if_thinning=True,
+    min_token_threshold=3000,
+    if_add_node_summary="yes",
+    summary_token_threshold=200,
+    model="gpt-4o-2024-11-20",
+    if_add_doc_description="yes",
+    if_add_node_text="yes",
+    if_add_node_id="yes"
+))
+
+# Save to JSON
+import json
+with open("output.json", "w", encoding="utf-8") as f:
+    json.dump(result, f, indent=2, ensure_ascii=False)
+```
+
+### Async Context Usage
+
+```python
+from pageindex.page_index_md import md_to_tree
+
+async def process_multiple_docs():
+    # Process multiple Markdown files concurrently
+    tasks = [
+        md_to_tree("doc1.md", if_add_node_summary="yes", model="gpt-4o"),
+        md_to_tree("doc2.md", if_add_node_summary="yes", model="gpt-4o"),
+        md_to_tree("doc3.md", if_add_node_summary="yes", model="gpt-4o")
+    ]
+    
+    results = await asyncio.gather(*tasks)
+    return results
+
+# Run
+import asyncio
+results = asyncio.run(process_multiple_docs())
+```
+
+## Markdown Format Requirements
+
+<Warning>
+  Headers must follow standard Markdown syntax:
+  - Use `#` for level 1 headers
+  - Use `##` for level 2 headers
+  - Use `###` for level 3 headers, etc.
+  - Headers inside code blocks (triple backticks) are ignored
+</Warning>
+
+**Valid Markdown:**
+```markdown
+# Chapter 1: Introduction
+
+Some content here.
+
+## Section 1.1: Background
+
+More content.
+
+### Subsection 1.1.1: History
+
+Detailed content.
+```
+
+**Invalid/Problematic:**
+```markdown
+Chapter 1: Introduction  <!-- Missing # -->
+=======================
+
+Content with random #hashtags  <!-- Not a header -->
+```
+
+## Tree Thinning Behavior
+
+When `if_thinning=True`:
+
+1. Calculates token count for each node (including all descendants)
+2. If a node has fewer tokens than `min_token_threshold`:
+   - Merges all child content into parent node
+   - Removes child nodes from tree
+   - Updates parent's text and token count
+3. Processes from leaves to root to ensure accurate merging
+
+**Example:**
+```python
+# Before thinning (small subsections)
+# - Chapter 1 (1000 tokens)
+#   - Section 1.1 (200 tokens)
+#   - Section 1.2 (150 tokens)
+#
+# After thinning (min_token_threshold=500)
+# - Chapter 1 (1350 tokens, includes 1.1 and 1.2 text)
+```
+
+## Performance Notes
+
+- Processing is much faster than PDF (no OCR or complex parsing)
+- Summary generation is the slowest step
+- Token counting uses the specified model's tokenizer
+- Large documents may take several minutes if summaries are enabled
+
+## See Also
+
+- [page_index()](/api/page-index) - For PDF documents
+- [CLI Reference](/api/cli-reference) - Command-line interface for Markdown
+- [ConfigLoader](/api/config) - Configuration system

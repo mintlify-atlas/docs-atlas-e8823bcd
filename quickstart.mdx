@@ -1,80 +1,193 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quick Start
+description: Generate a PageIndex tree structure from a PDF document in under 5 minutes
 ---
 
-## Get started in three steps
+## Overview
 
-Get your documentation site running locally and make your first customization.
-
-### Step 1: Set up your local environment
-
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
-
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
-
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
-
-## Next steps
-
-Now that you have your docs running, explore these key features:
-
-<CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
-</CardGroup>
+This guide will walk you through generating your first PageIndex tree structure from a PDF document. You'll transform a lengthy PDF into a hierarchical, semantic tree index optimized for LLM-powered retrieval.
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  PageIndex is ideal for financial reports, regulatory filings, academic textbooks, legal or technical manuals, and any document that exceeds LLM context limits.
 </Note>
+
+<Steps>
+  <Step title="Install Dependencies">
+    Install the required Python packages using pip:
+
+    ```bash
+    pip3 install --upgrade -r requirements.txt
+    ```
+
+    This will install:
+    - `openai==1.101.0` - OpenAI API client
+    - `pymupdf==1.26.4` - PDF parsing
+    - `PyPDF2==3.0.1` - Additional PDF utilities
+    - `python-dotenv==1.1.0` - Environment variable management
+    - `tiktoken==0.11.0` - Token counting
+    - `pyyaml==6.0.2` - Configuration file support
+  </Step>
+
+  <Step title="Configure Your OpenAI API Key">
+    Create a `.env` file in the root directory and add your OpenAI API key:
+
+    ```bash
+    CHATGPT_API_KEY=your_openai_key_here
+    ```
+
+    <Warning>
+      PageIndex uses GPT-4o by default for high-quality tree generation. Make sure your API key has access to the required models.
+    </Warning>
+  </Step>
+
+  <Step title="Run PageIndex on Your PDF">
+    Process your PDF document to generate the tree structure:
+
+    ```bash
+    python3 run_pageindex.py --pdf_path /path/to/your/document.pdf
+    ```
+
+    PageIndex will:
+    1. Parse your PDF and extract text content
+    2. Detect the table of contents (if present)
+    3. Generate a hierarchical tree structure with summaries
+    4. Save the output as a JSON file in `./results/`
+
+    You should see output like:
+    ```
+    Parsing done, saving to file...
+    Tree structure saved to: ./results/document_structure.json
+    ```
+  </Step>
+
+  <Step title="Explore the Generated Tree">
+    Open the generated JSON file to explore your document's tree structure:
+
+    ```json
+    {
+      "title": "Financial Stability",
+      "node_id": "0006",
+      "start_index": 21,
+      "end_index": 22,
+      "summary": "The Federal Reserve ...",
+      "nodes": [
+        {
+          "title": "Monitoring Financial Vulnerabilities",
+          "node_id": "0007",
+          "start_index": 22,
+          "end_index": 28,
+          "summary": "The Federal Reserve's monitoring ..."
+        },
+        {
+          "title": "Domestic and International Cooperation",
+          "node_id": "0008",
+          "start_index": 28,
+          "end_index": 31,
+          "summary": "In 2023, the Federal Reserve collaborated ..."
+        }
+      ]
+    }
+    ```
+
+    Each node contains:
+    - `title` - Section heading
+    - `node_id` - Unique identifier
+    - `start_index` / `end_index` - Page range
+    - `summary` - AI-generated section summary
+    - `nodes` - Nested subsections (if any)
+  </Step>
+</Steps>
+
+## Customization Options
+
+PageIndex supports various optional parameters to customize tree generation:
+
+<CodeGroup>
+```bash Model Selection
+python3 run_pageindex.py \
+  --pdf_path document.pdf \
+  --model gpt-4o-2024-11-20
+```
+
+```bash Page Limits
+python3 run_pageindex.py \
+  --pdf_path document.pdf \
+  --max-pages-per-node 10 \
+  --max-tokens-per-node 20000
+```
+
+```bash TOC Detection
+python3 run_pageindex.py \
+  --pdf_path document.pdf \
+  --toc-check-pages 20
+```
+
+```bash Output Options
+python3 run_pageindex.py \
+  --pdf_path document.pdf \
+  --if-add-node-id yes \
+  --if-add-node-summary yes \
+  --if-add-doc-description yes
+```
+</CodeGroup>
+
+### Available Parameters
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--model` | `gpt-4o-2024-11-20` | OpenAI model to use for tree generation |
+| `--toc-check-pages` | `20` | Number of pages to check for table of contents |
+| `--max-pages-per-node` | `10` | Maximum pages per tree node |
+| `--max-tokens-per-node` | `20000` | Maximum tokens per tree node |
+| `--if-add-node-id` | `yes` | Add unique node IDs |
+| `--if-add-node-summary` | `yes` | Generate AI summaries for each node |
+| `--if-add-doc-description` | `no` | Add document-level description |
+
+## Markdown Support
+
+PageIndex also supports markdown files. Use the `--md_path` flag instead:
+
+```bash
+python3 run_pageindex.py --md_path /path/to/your/document.md
+```
+
+<Note>
+  PageIndex uses `#` markers to determine node hierarchy. Ensure your markdown file has proper heading structure (`##` for level 2, `###` for level 3, etc.).
+</Note>
+
+<Warning>
+  If your markdown was converted from PDF or HTML, most tools don't preserve hierarchy correctly. Consider using [PageIndex OCR](https://pageindex.ai/blog/ocr) for better conversion quality.
+</Warning>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Vectorless RAG Cookbook"
+    icon="flask"
+    href="/cookbook/vectorless-rag-pageindex"
+  >
+    Build a complete reasoning-based RAG system with PageIndex
+  </Card>
+  <Card
+    title="API Reference"
+    icon="code"
+    href="/api/page-index"
+  >
+    Explore the full Python API and configuration options
+  </Card>
+  <Card
+    title="Tree Search Tutorial"
+    icon="magnifying-glass"
+    href="/tutorials/tree-search"
+  >
+    Learn how to perform reasoning-based retrieval over the tree
+  </Card>
+  <Card
+    title="Example Documents"
+    icon="file-pdf"
+    href="https://github.com/VectifyAI/PageIndex/tree/main/tests/pdfs"
+  >
+    See sample PDFs and their generated tree structures
+  </Card>
+</CardGroup>

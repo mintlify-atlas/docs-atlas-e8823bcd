@@ -1,0 +1,226 @@
+---
+title: Installation
+description: Set up PageIndex in your local environment
+---
+
+## Prerequisites
+
+Before installing PageIndex, ensure you have:
+
+- **Python 3.8+** installed on your system
+- **pip** or **pip3** package manager
+- An **OpenAI API key** with access to GPT-4o models
+
+<Note>
+  PageIndex is designed for self-hosting and local deployment. For cloud-based solutions, see the [Chat Platform](https://chat.pageindex.ai) or [API](https://docs.pageindex.ai/quickstart).
+</Note>
+
+## Install from Source
+
+<Steps>
+  <Step title="Clone the Repository">
+    Clone the PageIndex repository from GitHub:
+
+    ```bash
+    git clone https://github.com/VectifyAI/PageIndex.git
+    cd PageIndex
+    ```
+  </Step>
+
+  <Step title="Install Dependencies">
+    Install the required Python packages:
+
+    <CodeGroup>
+    ```bash pip3
+    pip3 install --upgrade -r requirements.txt
+    ```
+
+    ```bash pip
+    pip install --upgrade -r requirements.txt
+    ```
+    </CodeGroup>
+
+    This will install the following dependencies:
+
+    ```txt requirements.txt
+    openai==1.101.0
+    pymupdf==1.26.4
+    PyPDF2==3.0.1
+    python-dotenv==1.1.0
+    tiktoken==0.11.0
+    pyyaml==6.0.2
+    ```
+  </Step>
+
+  <Step title="Configure Environment Variables">
+    Create a `.env` file in the root directory:
+
+    ```bash
+    touch .env
+    ```
+
+    Add your OpenAI API key:
+
+    ```bash .env
+    CHATGPT_API_KEY=your_openai_key_here
+    ```
+
+    <Warning>
+      Never commit your `.env` file to version control. Add it to `.gitignore` to keep your API key secure.
+    </Warning>
+  </Step>
+
+  <Step title="Verify Installation">
+    Test your installation by running PageIndex on a sample PDF:
+
+    ```bash
+    python3 run_pageindex.py --pdf_path tests/pdfs/sample.pdf
+    ```
+
+    If successful, you should see:
+    ```
+    Parsing done, saving to file...
+    Tree structure saved to: ./results/sample_structure.json
+    ```
+  </Step>
+</Steps>
+
+## Package Dependencies
+
+PageIndex relies on several key Python packages:
+
+<CardGroup cols={2}>
+  <Card title="OpenAI" icon="robot">
+    **Version:** 1.101.0
+    
+    Official OpenAI Python client for GPT-4o API access. Used for LLM-powered reasoning and tree generation.
+  </Card>
+  
+  <Card title="PyMuPDF" icon="file-pdf">
+    **Version:** 1.26.4
+    
+    High-performance PDF parsing library. Extracts text content and page structure from PDF documents.
+  </Card>
+  
+  <Card title="PyPDF2" icon="file-lines">
+    **Version:** 3.0.1
+    
+    Additional PDF utilities for metadata extraction and document manipulation.
+  </Card>
+  
+  <Card title="python-dotenv" icon="key">
+    **Version:** 1.1.0
+    
+    Loads environment variables from `.env` files for secure API key management.
+  </Card>
+  
+  <Card title="tiktoken" icon="calculator">
+    **Version:** 0.11.0
+    
+    OpenAI's token counting library. Ensures nodes stay within token limits for optimal LLM processing.
+  </Card>
+  
+  <Card title="PyYAML" icon="file-code">
+    **Version:** 6.0.2
+    
+    Configuration file parser for loading user settings and default parameters.
+  </Card>
+</CardGroup>
+
+## Python Module Structure
+
+After installation, you can import PageIndex in your Python code:
+
+```python
+from pageindex import *
+from pageindex.page_index_md import md_to_tree
+```
+
+The main entry point is `run_pageindex.py`, which provides:
+
+- **PDF Processing:** `page_index_main()` - Generate tree from PDF
+- **Markdown Processing:** `md_to_tree()` - Generate tree from markdown
+- **Configuration:** `config()` - Customize tree generation parameters
+
+## Alternative Installation Methods
+
+### Virtual Environment (Recommended)
+
+For isolated package management, use a virtual environment:
+
+```bash
+# Create virtual environment
+python3 -m venv venv
+
+# Activate virtual environment
+source venv/bin/activate  # On Linux/Mac
+venv\Scripts\activate     # On Windows
+
+# Install dependencies
+pip install --upgrade -r requirements.txt
+```
+
+### Docker (Coming Soon)
+
+Dockerized deployment will be available in a future release. For now, use the source installation method.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="ImportError: No module named 'pageindex'">
+    Make sure you're running commands from the PageIndex root directory and that all dependencies are installed:
+
+    ```bash
+    pip3 install --upgrade -r requirements.txt
+    ```
+  </Accordion>
+
+  <Accordion title="OpenAI API Error: Authentication Failed">
+    Verify your API key is correctly set in the `.env` file:
+
+    ```bash
+    cat .env
+    # Should show: CHATGPT_API_KEY=sk-...
+    ```
+
+    Ensure there are no extra spaces or quotes around the key.
+  </Accordion>
+
+  <Accordion title="PDF Parsing Errors">
+    Some complex PDFs may have parsing issues. Try:
+
+    1. Ensure the PDF is not password-protected
+    2. Check that the PDF contains extractable text (not just images)
+    3. For scanned documents, consider using [PageIndex OCR](https://pageindex.ai/blog/ocr)
+  </Accordion>
+
+  <Accordion title="Token Limit Exceeded">
+    If nodes exceed token limits, adjust the parameters:
+
+    ```bash
+    python3 run_pageindex.py \
+      --pdf_path document.pdf \
+      --max-pages-per-node 5 \
+      --max-tokens-per-node 10000
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Quick Start Guide"
+    icon="rocket"
+    href="/quickstart"
+  >
+    Generate your first PageIndex tree structure
+  </Card>
+  <Card
+    title="API Reference"
+    icon="code"
+    href="/api/page-index"
+  >
+    Explore configuration options and Python API
+  </Card>
+</CardGroup>

@@ -1,0 +1,247 @@
+---
+title: Tree Search
+description: Learn how to perform retrieval using PageIndex tree structures with LLM-based search and preference integration
+---
+
+This tutorial provides examples of how to perform retrieval using the PageIndex tree structure. Tree search enables intelligent navigation through document hierarchies to find relevant content.
+
+## Basic LLM Tree Search
+
+A simple strategy is to use an LLM agent to conduct tree search. The LLM analyzes the document tree structure and identifies relevant nodes based on the query.
+
+### Implementation
+
+```python
+def tree_search(query: str, tree_structure: dict) -> list[str]:
+    prompt = f"""
+    You are given a query and the tree structure of a document.
+    You need to find all nodes that are likely to contain the answer.
+    
+    Query: {query}
+    
+    Document tree structure: {tree_structure}
+    
+    Reply in the following JSON format:
+    {{
+      "thinking": <your reasoning about which nodes are relevant>,
+      "node_list": [node_id1, node_id2, ...]
+    }}
+    """
+    
+    response = llm.generate(prompt)
+    result = json.loads(response)
+    return result['node_list']
+
+# Example usage
+relevant_nodes = tree_search(
+    query="What were the key financial highlights in Q4?",
+    tree_structure=pageindex_tree
+)
+```
+
+<Note>
+  In our dashboard and retrieval API, we use a combination of LLM tree search and value function-based Monte Carlo Tree Search ([MCTS](https://en.wikipedia.org/wiki/Monte_Carlo_tree_search)). More details will be released soon.
+</Note>
+
+## Integrating User Preference or Expert Knowledge
+
+Unlike vector-based RAG where integrating expert knowledge or user preference requires fine-tuning the embedding model, in PageIndex, you can incorporate user preferences or expert knowledge by simply adding knowledge to the LLM tree search prompt.
+
+### Implementation Pipeline
+
+<Steps>
+  <Step title="Preference Retrieval">
+    When a query is received, the system selects the most relevant user preference or expert knowledge snippets from a database or a set of domain-specific rules. This can be done using keyword matching, semantic similarity, or LLM-based relevance search.
+
+    ```python
+    def retrieve_preferences(query: str, preference_db: dict) -> str:
+        """
+        Retrieve relevant expert preferences based on the query.
+        Can use keyword matching, semantic search, or LLM-based relevance.
+        """
+        # Example: Simple keyword matching
+        preferences = []
+        query_lower = query.lower()
+        
+        for topic, preference in preference_db.items():
+            if any(keyword in query_lower for keyword in preference['keywords']):
+                preferences.append(preference['text'])
+        
+        return '\n'.join(preferences) if preferences else None
+
+    # Example preference database
+    preference_db = {
+        'ebitda': {
+            'keywords': ['ebitda', 'adjustments', 'earnings'],
+            'text': 'If the query mentions EBITDA adjustments, prioritize Item 7 (MD&A) and footnotes in Item 8 (Financial Statements) in 10-K reports.'
+        },
+        'risk_factors': {
+            'keywords': ['risk', 'risk factors', 'uncertainties'],
+            'text': 'For risk-related queries, focus on Item 1A (Risk Factors) and Item 7A (Quantitative and Qualitative Disclosures About Market Risk).'
+        }
+    }
+
+    # Retrieve relevant preferences
+    preferences = retrieve_preferences(
+        query="What are the EBITDA adjustments?",
+        preference_db=preference_db
+    )
+    ```
+  </Step>
+
+  <Step title="Tree Search with Preference">
+    Integrate the retrieved preference into the tree search prompt to guide the LLM's node selection.
+
+    ```python
+    def tree_search_with_preference(
+        query: str, 
+        tree_structure: dict, 
+        preference: str
+    ) -> list[str]:
+        prompt = f"""
+        You are given a question and a tree structure of a document.
+        You need to find all nodes that are likely to contain the answer.
+        
+        Query: {query}
+        
+        Document tree structure: {tree_structure}
+        
+        Expert Knowledge of relevant sections: {preference}
+        
+        Reply in the following JSON format:
+        {{
+          "thinking": <reasoning about which nodes are relevant>,
+          "node_list": [node_id1, node_id2, ...]
+        }}
+        """
+        
+        response = llm.generate(prompt)
+        result = json.loads(response)
+        return result['node_list']
+
+    # Example usage
+    relevant_nodes = tree_search_with_preference(
+        query="What are the EBITDA adjustments for 2023?",
+        tree_structure=pageindex_tree,
+        preference="If the query mentions EBITDA adjustments, prioritize Item 7 (MD&A) and footnotes in Item 8 (Financial Statements) in 10-K reports."
+    )
+    ```
+
+    ### Example Expert Preference
+
+    > If the query mentions EBITDA adjustments, prioritize Item 7 (MD&A) and footnotes in Item 8 (Financial Statements) in 10-K reports.
+
+    By integrating user or expert preferences, node search becomes more targeted and effective, leveraging both the document structure and domain-specific insights.
+  </Step>
+</Steps>
+
+## Complete Example
+
+Here's a complete example that combines tree search with preference integration:
+
+```python
+import json
+from typing import Optional
+
+class TreeSearchWithPreference:
+    def __init__(self, llm, pageindex_client, preference_db):
+        self.llm = llm
+        self.pageindex = pageindex_client
+        self.preference_db = preference_db
+    
+    def retrieve_preferences(self, query: str) -> Optional[str]:
+        """Retrieve relevant expert preferences based on the query"""
+        preferences = []
+        query_lower = query.lower()
+        
+        for topic, preference in self.preference_db.items():
+            if any(keyword in query_lower for keyword in preference['keywords']):
+                preferences.append(preference['text'])
+        
+        return '\n'.join(preferences) if preferences else None
+    
+    def search(self, query: str, doc_id: str) -> list[str]:
+        """Perform tree search with optional preference integration"""
+        # Get document tree structure
+        tree_structure = self.pageindex.get_tree(doc_id)
+        
+        # Retrieve relevant preferences
+        preference = self.retrieve_preferences(query)
+        
+        # Construct prompt
+        if preference:
+            prompt = f"""
+            You are given a question and a tree structure of a document.
+            You need to find all nodes that are likely to contain the answer.
+            
+            Query: {query}
+            
+            Document tree structure: {tree_structure}
+            
+            Expert Knowledge of relevant sections: {preference}
+            
+            Reply in the following JSON format:
+            {{
+              "thinking": <reasoning about which nodes are relevant>,
+              "node_list": [node_id1, node_id2, ...]
+            }}
+            """
+        else:
+            prompt = f"""
+            You are given a query and the tree structure of a document.
+            You need to find all nodes that are likely to contain the answer.
+            
+            Query: {query}
+            
+            Document tree structure: {tree_structure}
+            
+            Reply in the following JSON format:
+            {{
+              "thinking": <your reasoning about which nodes are relevant>,
+              "node_list": [node_id1, node_id2, ...]
+            }}
+            """
+        
+        # Get LLM response
+        response = self.llm.generate(prompt)
+        result = json.loads(response)
+        
+        return result['node_list']
+
+# Example usage
+preference_db = {
+    'ebitda': {
+        'keywords': ['ebitda', 'adjustments', 'earnings'],
+        'text': 'If the query mentions EBITDA adjustments, prioritize Item 7 (MD&A) and footnotes in Item 8 (Financial Statements) in 10-K reports.'
+    }
+}
+
+searcher = TreeSearchWithPreference(
+    llm=llm_client,
+    pageindex_client=pageindex,
+    preference_db=preference_db
+)
+
+# Search with automatic preference integration
+relevant_nodes = searcher.search(
+    query="What are the EBITDA adjustments for Q4 2023?",
+    doc_id="doc_abc123"
+)
+
+print(f"Found {len(relevant_nodes)} relevant nodes: {relevant_nodes}")
+```
+
+## Benefits of Tree Search with Preferences
+
+- **No Model Fine-tuning**: Unlike vector-based RAG, preferences are integrated directly into prompts
+- **Dynamic Updates**: Expert knowledge can be updated without retraining models
+- **Transparent Reasoning**: LLM provides explicit reasoning for node selection
+- **Domain Expertise**: Leverages document-specific knowledge and user preferences
+- **Flexible Integration**: Supports multiple preference types (expert rules, user history, domain guidelines)
+
+## Need Help?
+
+Contact us if you need any advice on conducting document searches for your use case.
+
+- [Join our Discord](https://discord.gg/VuXuf29EUj)
+- [Leave us a message](https://ii2abc2jejf.typeform.com/to/tK3AXl8T)

@@ -1,0 +1,495 @@
+---
+title: 'Configuration Options'
+description: 'Complete reference for all PageIndex configuration parameters'
+---
+
+## Overview
+
+PageIndex can be configured through:
+1. **CLI arguments** when using `run_pageindex.py`
+2. **Function parameters** when using the Python API
+3. **Config file** (`config.yaml`) for default values
+
+## Configuration Methods
+
+### CLI Configuration
+
+```bash
+python run_pageindex.py --pdf_path document.pdf --model gpt-4o-2024-11-20 --if-add-node-summary yes
+```
+
+### Programmatic Configuration (PDF)
+
+```python
+from pageindex import page_index
+
+result = page_index(
+    doc='document.pdf',
+    model='gpt-4o-2024-11-20',
+    if_add_node_summary='yes'
+)
+```
+
+### Programmatic Configuration (Markdown)
+
+```python
+import asyncio
+from pageindex.page_index_md import md_to_tree
+
+result = asyncio.run(md_to_tree(
+    md_path='document.md',
+    model='gpt-4o-2024-11-20',
+    if_add_node_summary='yes'
+))
+```
+
+### Default Configuration File
+
+PageIndex reads defaults from `pageindex/config.yaml`:
+
+```yaml
+model: "gpt-4o-2024-11-20"
+toc_check_page_num: 20
+max_page_num_each_node: 10
+max_token_num_each_node: 20000
+if_add_node_id: "yes"
+if_add_node_summary: "yes"
+if_add_doc_description: "no"
+if_add_node_text: "no"
+```
+
+## Universal Parameters
+
+These parameters apply to both PDF and Markdown processing.
+
+### Model Configuration
+
+<ParamField path="model" type="string" default="gpt-4o-2024-11-20">
+  The LLM model to use for structure extraction (PDF) and summary generation.
+  
+  **Supported Models**:
+  - `gpt-4o-2024-11-20` (recommended)
+  - `gpt-4o`
+  - `gpt-4-turbo`
+  - Any OpenAI-compatible model endpoint
+  
+  **CLI**:
+  ```bash
+  python run_pageindex.py --pdf_path doc.pdf --model gpt-4o-2024-11-20
+  ```
+  
+  **Python (PDF)**:
+  ```python
+  page_index('doc.pdf', model='gpt-4o-2024-11-20')
+  ```
+  
+  **Python (Markdown)**:
+  ```python
+  md_to_tree('doc.md', model='gpt-4o-2024-11-20')
+  ```
+</ParamField>
+
+### Content Enrichment
+
+<ParamField path="if_add_node_id" type="string" default="yes">
+  Whether to add unique node IDs to each section in the tree.
+  
+  **Options**: `yes`, `no`
+  
+  **Example Output with `yes`**:
+  ```json
+  {
+    "title": "Introduction",
+    "node_id": "0001"
+  }
+  ```
+  
+  **CLI**:
+  ```bash
+  python run_pageindex.py --pdf_path doc.pdf --if-add-node-id yes
+  ```
+  
+  **Python**:
+  ```python
+  page_index('doc.pdf', if_add_node_id='yes')
+  ```
+  
+  <Tip>Node IDs are essential for retrieval systems to reference specific sections.</Tip>
+</ParamField>
+
+<ParamField path="if_add_node_summary" type="string" default="yes">
+  Whether to generate AI-powered summaries for each node.
+  
+  **Options**: `yes`, `no`
+  
+  **Example Output**:
+  ```json
+  {
+    "title": "Methodology",
+    "summary": "This section describes the research methodology...",
+    "prefix_summary": "Overview content before subsections..." // for parent nodes
+  }
+  ```
+  
+  **CLI**:
+  ```bash
+  python run_pageindex.py --pdf_path doc.pdf --if-add-node-summary yes
+  ```
+  
+  **Python**:
+  ```python
+  page_index('doc.pdf', if_add_node_summary='yes')
+  ```
+  
+  <Warning>Enabling summaries increases processing time and API costs significantly (1 LLM call per node).</Warning>
+</ParamField>
+
+<ParamField path="if_add_doc_description" type="string" default="no">
+  Whether to generate an overall description of the entire document.
+  
+  **Options**: `yes`, `no`
+  
+  **Example Output**:
+  ```json
+  {
+    "doc_name": "research_paper",
+    "doc_description": "This document presents a comprehensive study on...",
+    "structure": [...]
+  }
+  ```
+  
+  **CLI**:
+  ```bash
+  python run_pageindex.py --pdf_path doc.pdf --if-add-doc-description yes
+  ```
+  
+  **Python**:
+  ```python
+  page_index('doc.pdf', if_add_doc_description='yes')
+  ```
+  
+  <Info>Requires `if_add_node_summary=yes` to function.</Info>
+</ParamField>
+
+<ParamField path="if_add_node_text" type="string" default="no">
+  Whether to include the full text content of each section in the output.
+  
+  **Options**: `yes`, `no`
+  
+  **Example Output**:
+  ```json
+  {
+    "title": "Introduction",
+    "text": "This is the full text content of the introduction section..."
+  }
+  ```
+  
+  **CLI**:
+  ```bash
+  python run_pageindex.py --pdf_path doc.pdf --if-add-node-text yes
+  ```
+  
+  **Python**:
+  ```python
+  page_index('doc.pdf', if_add_node_text='yes')
+  ```
+  
+  <Warning>Including full text significantly increases output file size.</Warning>
+</ParamField>
+
+## PDF-Only Parameters
+
+These parameters only apply when processing PDF documents.
+
+### TOC Detection
+
+<ParamField path="toc_check_page_num" type="integer" default="20">
+  Number of pages to scan from the beginning for table of contents detection.
+  
+  **CLI Name**: `--toc-check-pages`
+  
+  **Use Cases**:
+  - Default (20): Works for most documents
+  - 30-50: Documents with long, multi-page TOCs
+  - 5-10: Short documents or those without TOCs
+  
+  **CLI**:
+  ```bash
+  python run_pageindex.py --pdf_path doc.pdf --toc-check-pages 30
+  ```
+  
+  **Python**:
+  ```python
+  page_index('doc.pdf', toc_check_page_num=30)
+  ```
+</ParamField>
+
+### Node Size Limits
+
+<ParamField path="max_page_num_each_node" type="integer" default="10">
+  Maximum number of pages allowed per node before recursive subdivision.
+  
+  **CLI Name**: `--max-pages-per-node`
+  
+  When a node exceeds this page count AND the token limit, PageIndex will:
+  1. Extract sub-structure from that node
+  2. Recursively subdivide until all nodes are within limits
+  
+  **Guidelines**:
+  - **Small (5-8 pages)**: Fine-grained retrieval, more nodes
+  - **Medium (10-15 pages)**: Balanced approach (recommended)
+  - **Large (20+ pages)**: Faster processing, coarser structure
+  
+  **CLI**:
+  ```bash
+  python run_pageindex.py --pdf_path doc.pdf --max-pages-per-node 15
+  ```
+  
+  **Python**:
+  ```python
+  page_index('doc.pdf', max_page_num_each_node=15)
+  ```
+</ParamField>
+
+<ParamField path="max_token_num_each_node" type="integer" default="20000">
+  Maximum number of tokens allowed per node before recursive subdivision.
+  
+  **CLI Name**: `--max-tokens-per-node`
+  
+  This works in conjunction with `max_page_num_each_node`. A node is subdivided if it exceeds BOTH limits.
+  
+  **Guidelines**:
+  - **Small (10000-15000 tokens)**: Detailed structure
+  - **Medium (20000-30000 tokens)**: Balanced (recommended)
+  - **Large (40000+ tokens)**: Minimal subdivision
+  
+  **CLI**:
+  ```bash
+  python run_pageindex.py --pdf_path doc.pdf --max-tokens-per-node 25000
+  ```
+  
+  **Python**:
+  ```python
+  page_index('doc.pdf', max_token_num_each_node=25000)
+  ```
+  
+  <Info>Tokens are counted using the specified model's tokenizer.</Info>
+</ParamField>
+
+## Markdown-Only Parameters
+
+These parameters only apply when processing Markdown documents.
+
+### Tree Thinning
+
+<ParamField path="if_thinning" type="string | boolean" default="no">
+  Whether to apply tree thinning to merge small sections with their parents.
+  
+  **CLI Options**: `yes`, `no`  
+  **Python Options**: `True`, `False`
+  
+  **How It Works**:
+  1. Calculate total tokens for each node (including all descendants)
+  2. If total < threshold, merge children into parent
+  3. Remove child nodes from tree structure
+  
+  **CLI**:
+  ```bash
+  python run_pageindex.py --md_path doc.md --if-thinning yes
+  ```
+  
+  **Python**:
+  ```python
+  md_to_tree('doc.md', if_thinning=True)
+  ```
+  
+  <Tip>Use thinning for documents with many small subsections that should be treated as cohesive units.</Tip>
+</ParamField>
+
+<ParamField path="min_token_threshold" type="integer" default="5000">
+  Minimum token count for keeping a section and its children separate (used with tree thinning).
+  
+  **CLI Name**: `--thinning-threshold`
+  
+  Sections with total tokens (including descendants) below this threshold will be merged into their parent.
+  
+  **Guidelines**:
+  - **2000-3000**: Aggressive merging, flatter tree
+  - **5000-8000**: Balanced approach (recommended)
+  - **10000+**: Minimal merging, preserve structure
+  
+  **CLI**:
+  ```bash
+  python run_pageindex.py --md_path doc.md --if-thinning yes --thinning-threshold 3000
+  ```
+  
+  **Python**:
+  ```python
+  md_to_tree('doc.md', if_thinning=True, min_token_threshold=3000)
+  ```
+</ParamField>
+
+<ParamField path="summary_token_threshold" type="integer" default="200">
+  Token threshold below which full text is used instead of generating a summary.
+  
+  **CLI Name**: `--summary-token-threshold`
+  
+  For short sections, the full text is often more useful than a summary. This parameter defines that threshold.
+  
+  **Guidelines**:
+  - **100-150**: Only very short sections use full text
+  - **200-300**: Balanced approach (recommended)
+  - **500+**: Most sections get summaries instead of full text
+  
+  **CLI**:
+  ```bash
+  python run_pageindex.py --md_path doc.md --summary-token-threshold 250
+  ```
+  
+  **Python**:
+  ```python
+  md_to_tree('doc.md', summary_token_threshold=250)
+  ```
+  
+  <Info>Only applies when `if_add_node_summary=yes`.</Info>
+</ParamField>
+
+## Configuration Precedence
+
+When parameters are specified in multiple places, PageIndex uses this priority order:
+
+1. **CLI arguments / Function parameters** (highest priority)
+2. **Environment variables** (if applicable)
+3. **config.yaml file** (lowest priority)
+
+### Example
+
+If `config.yaml` has:
+```yaml
+model: "gpt-4o-2024-11-20"
+if_add_node_summary: "yes"
+```
+
+And you run:
+```bash
+python run_pageindex.py --pdf_path doc.pdf --if-add-node-summary no
+```
+
+Result:
+- `model`: `gpt-4o-2024-11-20` (from config.yaml)
+- `if_add_node_summary`: `no` (from CLI argument, overrides config)
+
+## Common Configuration Patterns
+
+### Fast Processing (Minimal Enrichment)
+
+**Use Case**: Quick structure extraction without summaries.
+
+```bash
+python run_pageindex.py \
+  --pdf_path doc.pdf \
+  --if-add-node-summary no \
+  --if-add-node-id yes
+```
+
+**Cost**: Minimal (structure extraction only)  
+**Speed**: Fast
+
+### Balanced Approach (Recommended)
+
+**Use Case**: Good balance of detail and processing time.
+
+```bash
+python run_pageindex.py \
+  --pdf_path doc.pdf \
+  --if-add-node-summary yes \
+  --if-add-node-id yes \
+  --max-pages-per-node 10 \
+  --max-tokens-per-node 20000
+```
+
+**Cost**: Moderate (1 LLM call per node)  
+**Speed**: Moderate
+
+### Maximum Detail
+
+**Use Case**: Complete extraction with all metadata.
+
+```bash
+python run_pageindex.py \
+  --pdf_path doc.pdf \
+  --if-add-node-summary yes \
+  --if-add-doc-description yes \
+  --if-add-node-text yes \
+  --if-add-node-id yes \
+  --max-pages-per-node 5 \
+  --max-tokens-per-node 15000
+```
+
+**Cost**: High (many LLM calls)  
+**Speed**: Slow
+
+### Markdown with Thinning
+
+**Use Case**: Simplify markdown structure by merging small sections.
+
+```bash
+python run_pageindex.py \
+  --md_path doc.md \
+  --if-thinning yes \
+  --thinning-threshold 3000 \
+  --if-add-node-summary yes \
+  --summary-token-threshold 200
+```
+
+**Cost**: Moderate  
+**Speed**: Fast (fewer nodes to summarize)
+
+## Environment Variables
+
+PageIndex uses these environment variables:
+
+<ParamField path="OPENAI_API_KEY" type="string" required>
+  Your OpenAI API key for LLM calls.
+  ```bash
+  export OPENAI_API_KEY="sk-..."
+  ```
+</ParamField>
+
+<ParamField path="OPENAI_API_BASE" type="string">
+  Custom API endpoint (for OpenAI-compatible services).
+  ```bash
+  export OPENAI_API_BASE="https://api.custom-llm.com/v1"
+  ```
+</ParamField>
+
+## Tips & Best Practices
+
+<Tip>
+  **Start Simple**: Begin with default settings, then adjust based on results.
+</Tip>
+
+<Tip>
+  **Token Limits**: Keep `max_token_num_each_node` under your model's context window (typically 128K for GPT-4).
+</Tip>
+
+<Warning>
+  **Cost Control**: Enabling `if_add_node_summary=yes` can generate hundreds of LLM calls for large documents. Monitor your API usage.
+</Warning>
+
+<Tip>
+  **Output Size**: If your JSON output is too large, consider:
+  - Setting `if_add_node_text=no`
+  - Increasing node size limits to create fewer nodes
+  - Using summaries instead of full text
+</Tip>
+
+<Tip>
+  **Markdown Thinning**: Experiment with `thinning-threshold` values. Check the output structure after thinning to ensure it meets your needs.
+</Tip>
+
+## Next Steps
+
+- Try [generating trees from PDFs](/guides/generating-tree-from-pdf)
+- Try [generating trees from Markdown](/guides/generating-tree-from-markdown)
+- Learn about [tree search strategies](/guides/tree-search-strategies)

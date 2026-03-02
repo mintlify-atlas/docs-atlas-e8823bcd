@@ -1,0 +1,319 @@
+---
+title: 'ConfigLoader'
+description: 'Configuration management system for PageIndex'
+---
+
+## Class Overview
+
+```python
+class ConfigLoader:
+    def __init__(self, default_path: str = None)
+    def load(self, user_opt=None) -> config
+```
+
+**Source:** `pageindex/utils.py:681`
+
+## Description
+
+The `ConfigLoader` class manages configuration for PageIndex, loading defaults from `config.yaml` and merging them with user-provided options. It provides a centralized way to handle all PageIndex settings with validation and type checking.
+
+## Constructor
+
+### `__init__(default_path=None)`
+
+<ParamField path="default_path" type="str" default="None">
+  Path to the YAML configuration file. If `None`, defaults to `pageindex/config.yaml` in the package directory.
+</ParamField>
+
+**Example:**
+```python
+from pageindex.utils import ConfigLoader
+
+# Use default config.yaml
+loader = ConfigLoader()
+
+# Use custom config file
+loader = ConfigLoader(default_path="/path/to/custom_config.yaml")
+```
+
+## Methods
+
+### `load(user_opt=None)`
+
+Loads configuration by merging user options with default values.
+
+<ParamField path="user_opt" type="dict, config, or None" default="None">
+  User-provided configuration options. Can be:
+  - `None`: Use all defaults
+  - `dict`: Dictionary of config keys/values
+  - `config` (SimpleNamespace): Existing config object
+  
+  Raises `ValueError` if unknown keys are provided.
+  Raises `TypeError` if invalid type is passed.
+</ParamField>
+
+<ResponseField name="config" type="SimpleNamespace">
+  Configuration object with all settings as attributes. Contains:
+  - `model`: OpenAI model name
+  - `toc_check_page_num`: Pages to check for TOC
+  - `max_page_num_each_node`: Max pages per node
+  - `max_token_num_each_node`: Max tokens per node
+  - `if_add_node_id`: Add node IDs ("yes"/"no")
+  - `if_add_node_summary`: Generate summaries ("yes"/"no")
+  - `if_add_doc_description`: Generate doc description ("yes"/"no")
+  - `if_add_node_text`: Include text ("yes"/"no")
+</ResponseField>
+
+## Default Configuration
+
+The default `config.yaml` contains:
+
+```yaml
+model: "gpt-4o-2024-11-20"
+toc_check_page_num: 20
+max_page_num_each_node: 10
+max_token_num_each_node: 20000
+if_add_node_id: "yes"
+if_add_node_summary: "yes"
+if_add_doc_description: "no"
+if_add_node_text: "no"
+```
+
+**Source:** `pageindex/config.yaml:1-8`
+
+## Configuration Parameters
+
+<ParamField path="model" type="str" default="gpt-4o-2024-11-20">
+  OpenAI model for processing. Supported models:
+  - `"gpt-4o-2024-11-20"` (recommended)
+  - `"gpt-4o"`
+  - `"gpt-4.1"`
+  - Other OpenAI chat models
+</ParamField>
+
+<ParamField path="toc_check_page_num" type="int" default="20">
+  Number of pages to scan for table of contents. Increase for documents with TOC appearing later.
+</ParamField>
+
+<ParamField path="max_page_num_each_node" type="int" default="10">
+  Maximum pages per node. Larger nodes are recursively subdivided.
+</ParamField>
+
+<ParamField path="max_token_num_each_node" type="int" default="20000">
+  Maximum token count per node. Used with `max_page_num_each_node` to trigger subdivision.
+</ParamField>
+
+<ParamField path="if_add_node_id" type="str" default="yes">
+  Add sequential node IDs ("0001", "0002", etc.). Values: `"yes"` or `"no"`
+</ParamField>
+
+<ParamField path="if_add_node_summary" type="str" default="yes">
+  Generate AI summaries for each node. Values: `"yes"` or `"no"`
+  
+  <Warning>Enabling summaries significantly increases processing time and API costs.</Warning>
+</ParamField>
+
+<ParamField path="if_add_doc_description" type="str" default="no">
+  Generate one-sentence document description. Values: `"yes"` or `"no"`
+  
+  Only works if `if_add_node_summary="yes"`
+</ParamField>
+
+<ParamField path="if_add_node_text" type="str" default="no">
+  Include full text content in each node. Values: `"yes"` or `"no"`
+  
+  <Note>Including text increases memory usage and output file size significantly.</Note>
+</ParamField>
+
+## Example Usage
+
+### Basic Usage - All Defaults
+
+```python
+from pageindex import page_index_main
+from pageindex.utils import ConfigLoader
+
+# Load default configuration
+loader = ConfigLoader()
+config = loader.load()
+
+# Use with page_index_main
+result = page_index_main("document.pdf", config)
+```
+
+### Partial Override
+
+```python
+from pageindex.utils import ConfigLoader
+
+# Override only specific settings
+loader = ConfigLoader()
+config = loader.load({
+    'model': 'gpt-4o',
+    'toc_check_page_num': 30,
+    'if_add_doc_description': 'yes'
+})
+
+print(f"Model: {config.model}")
+print(f"TOC check pages: {config.toc_check_page_num}")
+print(f"Max pages per node: {config.max_page_num_each_node}")  # Still default: 10
+```
+
+### Custom Config File
+
+```python
+from pageindex.utils import ConfigLoader
+
+# Use custom YAML file
+loader = ConfigLoader(default_path="my_config.yaml")
+config = loader.load()
+
+# Override some values
+config = loader.load({'model': 'gpt-4.1'})
+```
+
+### Validation
+
+```python
+from pageindex.utils import ConfigLoader
+
+loader = ConfigLoader()
+
+try:
+    # This will raise ValueError - invalid key
+    config = loader.load({
+        'invalid_key': 'value',
+        'model': 'gpt-4o'
+    })
+except ValueError as e:
+    print(f"Error: {e}")  # Error: Unknown config keys: {'invalid_key'}
+
+try:
+    # This will raise TypeError - invalid type
+    config = loader.load("invalid_type")
+except TypeError as e:
+    print(f"Error: {e}")  # Error: user_opt must be dict, config(SimpleNamespace) or None
+```
+
+### Accessing Configuration
+
+```python
+from pageindex.utils import ConfigLoader
+
+loader = ConfigLoader()
+config = loader.load({'toc_check_page_num': 25})
+
+# Access as attributes
+print(config.model)  # "gpt-4o-2024-11-20"
+print(config.toc_check_page_num)  # 25
+print(config.if_add_node_summary)  # "yes"
+
+# Convert to dict if needed
+config_dict = vars(config)
+print(config_dict)
+# {'model': 'gpt-4o-2024-11-20', 'toc_check_page_num': 25, ...}
+```
+
+### Creating Config from Scratch
+
+```python
+from types import SimpleNamespace
+from pageindex import page_index_main
+
+# Create config manually (not recommended)
+config = SimpleNamespace(
+    model='gpt-4o-2024-11-20',
+    toc_check_page_num=20,
+    max_page_num_each_node=10,
+    max_token_num_each_node=20000,
+    if_add_node_id='yes',
+    if_add_node_summary='no',
+    if_add_doc_description='no',
+    if_add_node_text='no'
+)
+
+result = page_index_main("document.pdf", config)
+```
+
+## Creating Custom config.yaml
+
+You can create your own configuration file:
+
+```yaml
+# my_config.yaml
+model: "gpt-4o"
+toc_check_page_num: 30
+max_page_num_each_node: 15
+max_token_num_each_node: 25000
+if_add_node_id: "yes"
+if_add_node_summary: "yes"
+if_add_doc_description: "yes"
+if_add_node_text: "yes"
+```
+
+Then load it:
+```python
+from pageindex.utils import ConfigLoader
+
+loader = ConfigLoader(default_path="my_config.yaml")
+config = loader.load()
+```
+
+## Performance Recommendations
+
+### Fast Processing (Structure Only)
+```python
+config = loader.load({
+    'if_add_node_summary': 'no',
+    'if_add_doc_description': 'no',
+    'if_add_node_text': 'no'
+})
+```
+
+### Balanced (With Summaries)
+```python
+config = loader.load({
+    'if_add_node_summary': 'yes',
+    'if_add_doc_description': 'no',
+    'if_add_node_text': 'no'
+})
+```
+
+### Full Features (Slowest)
+```python
+config = loader.load({
+    'if_add_node_summary': 'yes',
+    'if_add_doc_description': 'yes',
+    'if_add_node_text': 'yes'
+})
+```
+
+## Error Handling
+
+```python
+from pageindex.utils import ConfigLoader
+
+def safe_load_config(user_options=None):
+    try:
+        loader = ConfigLoader()
+        return loader.load(user_options)
+    except ValueError as e:
+        print(f"Invalid configuration keys: {e}")
+        return None
+    except FileNotFoundError:
+        print("Config file not found")
+        return None
+    except Exception as e:
+        print(f"Config error: {e}")
+        return None
+
+config = safe_load_config({'model': 'gpt-4o'})
+if config:
+    print("Configuration loaded successfully")
+```
+
+## See Also
+
+- [page_index()](/api/page-index) - Uses ConfigLoader internally
+- [page_index_main()](/api/page-index-main) - Accepts config object
+- [CLI Reference](/api/cli-reference) - Command-line configuration options

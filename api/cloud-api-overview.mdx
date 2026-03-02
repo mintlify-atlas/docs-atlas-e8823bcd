@@ -1,0 +1,361 @@
+---
+title: 'PageIndex Cloud API'
+description: 'Overview of the PageIndex Cloud API service'
+---
+
+## Overview
+
+The PageIndex Cloud API provides a hosted service for generating PageIndex tree structures and performing reasoning-based RAG without requiring local setup or managing infrastructure.
+
+<Card title="API Documentation" icon="book" href="https://docs.pageindex.ai/quickstart">
+  View the complete API documentation at docs.pageindex.ai
+</Card>
+
+## Available Services
+
+### PageIndex Chat Platform
+
+A ChatGPT-style interface for document analysis with human-like retrieval:
+
+<Card title="Chat Platform" icon="comments" href="https://chat.pageindex.ai">
+  Try the PageIndex Chat Platform at chat.pageindex.ai
+</Card>
+
+**Features:**
+- Upload and chat with long PDF documents
+- Reasoning-based retrieval with full traceability
+- Multi-document conversations
+- Page and section references in responses
+- No vector database or chunking required
+
+### MCP Integration
+
+Integrate PageIndex into Claude, Cursor, or any MCP-enabled agent:
+
+<Card title="MCP Setup" icon="plug" href="https://pageindex.ai/mcp">
+  Set up PageIndex MCP at pageindex.ai/mcp
+</Card>
+
+**Features:**
+- Native integration with Claude Desktop
+- Works with Cursor IDE
+- Compatible with any MCP-enabled application
+- Full PageIndex reasoning capabilities
+
+### REST API
+
+Programmatic access to PageIndex services:
+
+<Card title="API Quickstart" icon="code" href="https://docs.pageindex.ai/quickstart">
+  Get started with the API at docs.pageindex.ai/quickstart
+</Card>
+
+**Key Endpoints:**
+- Tree structure generation
+- Document upload and processing
+- Reasoning-based search
+- Multi-step retrieval
+
+## Deployment Options
+
+<CardGroup cols={3}>
+  <Card title="Self-Host" icon="server">
+    Run locally with the open-source repository on GitHub
+  </Card>
+  
+  <Card title="Cloud Service" icon="cloud">
+    Use the hosted Chat Platform, MCP, or REST API
+  </Card>
+  
+  <Card title="Enterprise" icon="building">
+    Private or on-premises deployment
+  </Card>
+</CardGroup>
+
+### Self-Hosted (Open Source)
+
+**Pros:**
+- Complete control over infrastructure
+- No API costs (pay only for OpenAI)
+- Customizable processing pipeline
+- No data leaves your environment
+
+**Cons:**
+- Requires local setup and maintenance
+- Slower processing (no optimization)
+- Manual scaling and monitoring
+
+**Best for:** Development, testing, custom workflows
+
+### Cloud Service
+
+**Pros:**
+- Instant access, no setup required
+- Optimized processing (faster results)
+- Managed infrastructure
+- Automatic updates and improvements
+
+**Cons:**
+- Requires API subscription
+- Data sent to PageIndex servers
+
+**Best for:** Production applications, rapid prototyping
+
+### Enterprise Deployment
+
+**Pros:**
+- Private cloud or on-premises hosting
+- Full data control and compliance
+- Custom SLAs and support
+- Dedicated resources
+
+**Cons:**
+- Higher cost
+- Requires enterprise contract
+
+**Best for:** Large organizations, regulated industries
+
+<Card title="Contact for Enterprise" icon="envelope" href="https://ii2abc2jejf.typeform.com/to/tK3AXl8T">
+  Contact us for enterprise deployment options
+</Card>
+
+## Cloud API vs. Self-Hosted
+
+| Feature | Cloud API | Self-Hosted |
+|---------|-----------|-------------|
+| Setup Time | Instant | 5-10 minutes |
+| Processing Speed | Optimized | Standard |
+| Infrastructure | Managed | Self-managed |
+| API Costs | Subscription | OpenAI only |
+| Data Privacy | Cloud | Fully private |
+| Customization | Limited | Full |
+| Scaling | Automatic | Manual |
+| Support | Included | Community |
+
+## Getting Started with Cloud API
+
+### 1. Sign Up
+
+Visit the [PageIndex Chat Platform](https://chat.pageindex.ai) to create an account.
+
+### 2. Get API Key
+
+API access is currently in beta. [Contact us](https://ii2abc2jejf.typeform.com/to/tK3AXl8T) to request access.
+
+### 3. Quick Example
+
+```python
+import requests
+
+# API endpoint (example - see official docs)
+url = "https://api.pageindex.ai/v1/process"
+
+# Upload document
+with open("document.pdf", "rb") as f:
+    files = {"file": f}
+    headers = {"Authorization": f"Bearer {api_key}"}
+    response = requests.post(url, files=files, headers=headers)
+
+result = response.json()
+print(f"Document ID: {result['doc_id']}")
+print(f"Tree structure: {result['structure']}")
+```
+
+<Note>
+  The above is a simplified example. See the [official API documentation](https://docs.pageindex.ai/quickstart) for complete endpoints and authentication.
+</Note>
+
+## Cloud API Features
+
+### Tree Structure Generation
+
+Generate PageIndex tree structures from uploaded documents:
+
+- Automatic TOC detection and extraction
+- Hierarchical structure with page ranges
+- Optional AI summaries for each section
+- Support for complex document layouts
+
+### Reasoning-Based Search
+
+Perform multi-step reasoning over document structures:
+
+- Natural language queries
+- Context-aware retrieval
+- Tree search with reasoning steps
+- Traceable results with page references
+
+### Multi-Document Support
+
+Work with multiple documents simultaneously:
+
+- Cross-document search
+- Document comparison
+- Multi-source answers
+- Document relationship analysis
+
+## Integration Examples
+
+### Python Client
+
+```python
+from pageindex_client import PageIndexClient
+
+# Initialize client
+client = PageIndexClient(api_key="your_api_key")
+
+# Upload and process document
+doc = client.upload("financial_report.pdf")
+
+# Get tree structure
+tree = doc.get_structure()
+
+# Perform search
+results = doc.search("What were the total revenues in Q4?")
+print(results.answer)
+print(results.sources)  # Page references
+```
+
+### JavaScript/TypeScript
+
+```typescript
+import { PageIndexClient } from '@pageindex/client';
+
+// Initialize client
+const client = new PageIndexClient({ apiKey: process.env.PAGEINDEX_API_KEY });
+
+// Upload document
+const doc = await client.upload('document.pdf');
+
+// Get structure
+const tree = await doc.getStructure();
+console.log(tree.structure);
+
+// Search
+const results = await doc.search('Summarize the executive summary');
+console.log(results.answer);
+```
+
+### cURL
+
+```bash
+# Upload document
+curl -X POST https://api.pageindex.ai/v1/upload \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -F "file=@document.pdf"
+
+# Get structure
+curl -X GET https://api.pageindex.ai/v1/documents/{doc_id}/structure \
+  -H "Authorization: Bearer YOUR_API_KEY"
+
+# Search
+curl -X POST https://api.pageindex.ai/v1/documents/{doc_id}/search \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "What is the main conclusion?"}'
+```
+
+## Pricing
+
+PageIndex Cloud API is currently in **beta**. Pricing will be announced upon general availability.
+
+**Beta Access:**
+- Limited free tier available
+- Early adopter discounts
+- Usage-based pricing planned
+
+<Card title="Request Beta Access" icon="rocket" href="https://ii2abc2jejf.typeform.com/to/tK3AXl8T">
+  Contact us to request beta access to the API
+</Card>
+
+## Use Cases
+
+### Financial Analysis
+- Analyze earnings reports, 10-Ks, 10-Qs
+- Extract specific metrics and KPIs
+- Compare financial documents
+
+### Legal & Compliance
+- Navigate complex contracts
+- Extract clauses and obligations
+- Compare legal documents
+
+### Research & Academia
+- Analyze research papers
+- Extract methodology and findings
+- Literature review automation
+
+### Technical Documentation
+- Search product manuals
+- Find specific procedures
+- Extract technical specifications
+
+## Support & Resources
+
+<CardGroup cols={2}>
+  <Card title="Documentation" icon="book" href="https://docs.pageindex.ai">
+    Complete API documentation and guides
+  </Card>
+  
+  <Card title="Discord Community" icon="discord" href="https://discord.com/invite/VuXuf29EUj">
+    Join our Discord for support and discussions
+  </Card>
+  
+  <Card title="GitHub Repository" icon="github" href="https://github.com/VectifyAI/PageIndex">
+    Open-source code and examples
+  </Card>
+  
+  <Card title="Blog" icon="newspaper" href="https://pageindex.ai/blog">
+    Technical articles and updates
+  </Card>
+</CardGroup>
+
+## Frequently Asked Questions
+
+<AccordionGroup>
+  <Accordion title="Is the Cloud API the same as the open-source version?">
+    The Cloud API provides the same core PageIndex functionality with additional optimizations, managed infrastructure, and extra features like multi-document support. The open-source version is great for self-hosting and customization.
+  </Accordion>
+  
+  <Accordion title="Can I migrate from self-hosted to Cloud API?">
+    Yes! The API is designed to be compatible with the open-source version. You can easily migrate existing workflows to the Cloud API with minimal code changes.
+  </Accordion>
+  
+  <Accordion title="How is data privacy handled?">
+    For the Cloud API, documents are processed on our secure servers and can be deleted after processing. For maximum privacy, use the self-hosted version or contact us about enterprise on-premises deployment.
+  </Accordion>
+  
+  <Accordion title="What file formats are supported?">
+    Currently, PDF files are fully supported. Markdown support is available in the open-source version. Additional formats may be added in the future.
+  </Accordion>
+  
+  <Accordion title="Can I use my own OpenAI API key?">
+    For the Cloud API, OpenAI costs are included in the subscription. For self-hosted deployments, you use your own OpenAI API key directly.
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<Steps>
+  <Step title="Try the Chat Platform">
+    Experience PageIndex with the [Chat Platform](https://chat.pageindex.ai) - no setup required
+  </Step>
+  
+  <Step title="Explore Documentation">
+    Read the [full API documentation](https://docs.pageindex.ai/quickstart) for integration details
+  </Step>
+  
+  <Step title="Request API Access">
+    [Contact us](https://ii2abc2jejf.typeform.com/to/tK3AXl8T) to request beta API access
+  </Step>
+  
+  <Step title="Join the Community">
+    Join our [Discord](https://discord.com/invite/VuXuf29EUj) for support and discussions
+  </Step>
+</Steps>
+
+## See Also
+
+- [page_index()](/api/page-index) - Self-hosted Python function
+- [CLI Reference](/api/cli-reference) - Command-line interface
+- [Cookbooks](https://docs.pageindex.ai/cookbook) - Hands-on examples

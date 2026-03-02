@@ -1,0 +1,205 @@
+---
+title: Reasoning-Based RAG
+description: How PageIndex uses LLM reasoning for retrieval instead of vector similarity
+---
+
+PageIndex introduces a fundamentally different approach to Retrieval-Augmented Generation (RAG) by using **reasoning** instead of **semantic similarity** for document retrieval. This paradigm shift addresses a core limitation of traditional vector-based RAG systems.
+
+## The Core Problem: Similarity ≠ Relevance
+
+Traditional vector-based RAG systems rely on semantic similarity to retrieve relevant document chunks. However, **similarity is not the same as relevance**.
+
+### Vector-Based RAG Limitations
+
+<CardGroup cols={2}>
+  <Card title="Opaque Retrieval" icon="question">
+    Vector similarity is a "black box" - it's unclear why certain chunks were retrieved
+  </Card>
+  <Card title="No Context Understanding" icon="puzzle-piece">
+    Embeddings don't understand document structure or relationships between sections
+  </Card>
+  <Card title="Surface-Level Matching" icon="magnifying-glass">
+    Similar words don't guarantee relevant content for complex queries
+  </Card>
+  <Card title="Lost Hierarchy" icon="sitemap">
+    Chunking destroys the document's natural organization and context
+  </Card>
+</CardGroup>
+
+<Info>
+**Example**: A query about "risk mitigation strategies" might retrieve chunks containing similar words like "risk" and "strategy", but miss the actual section discussing mitigation approaches because it uses different terminology.
+</Info>
+
+## Reasoning-Based Retrieval
+
+PageIndex uses LLMs to **reason** about which document sections are relevant to a query, simulating how human experts navigate and extract knowledge from complex documents.
+
+### Two-Step Process
+
+1. **Tree Structure Generation**: Create a hierarchical index of the document
+2. **Reasoning-Based Tree Search**: Use LLM reasoning to navigate the tree and find relevant sections
+
+```mermaid
+graph TD
+    A[Query: "What were the financial vulnerabilities in 2023?"] --> B[Tree Search]
+    B --> C{Examine Root Nodes}
+    C --> D["Preface (pages 1-4)"]
+    C --> E["Financial Stability (pages 21-31)"]
+    C --> F["Supervision (pages 31-59)"]
+    E --> G{Examine Child Nodes}
+    G --> H["Monitoring Financial Vulnerabilities (pages 22-28)"]
+    G --> I["International Cooperation (pages 28-31)"]
+    H --> J[Retrieve Relevant Pages]
+```
+
+<Note>
+The LLM evaluates each node based on its **title**, **summary**, and **context** to determine relevance - not just keyword matching.
+</Note>
+
+## How It Works: Tree Search
+
+PageIndex performs retrieval through **agentic tree search**, where the LLM acts as an intelligent agent navigating the document structure:
+
+### Step 1: Understanding the Query
+
+The LLM first analyzes the user's query to understand what information is being requested:
+
+```
+Query: "What were Disney's Q1 fiscal 2025 Entertainment segment results?"
+
+LLM Reasoning:
+- Need: Financial results for a specific segment
+- Time period: Q1 fiscal 2025  
+- Focus area: Entertainment segment
+- Looking for: Revenue, operating income, highlights
+```
+
+### Step 2: Navigating the Tree
+
+The LLM examines node titles and summaries to decide which branches to explore:
+
+```json
+{
+  "title": "Financial Results for the Quarter",
+  "summary": "Revenue increased 5% to $24.7 billion... Entertainment operating income increased by $0.8 billion to $1.7 billion...",
+  "reasoning": "This section contains Entertainment segment financial results for Q1 FY2025",
+  "action": "retrieve"
+}
+```
+
+### Step 3: Intelligent Pruning
+
+The LLM can reason about which sections to skip:
+
+```
+Node: "Guidance and Outlook" (pages 2-2)
+Reasoning: "This discusses future projections, not Q1 actual results"
+Action: Skip
+```
+
+<Tip>
+This reasoning-based approach allows PageIndex to handle complex, multi-hop queries that require domain expertise and contextual understanding.
+</Tip>
+
+## Comparison: Vector RAG vs Reasoning RAG
+
+| Aspect | Vector-Based RAG | PageIndex Reasoning RAG |
+|--------|------------------|-------------------------|
+| **Retrieval Method** | Embedding similarity | LLM reasoning over structure |
+| **Document Processing** | Chunking (arbitrary boundaries) | Tree structure (natural sections) |
+| **Context Preservation** | Lost in chunks | Hierarchical relationships maintained |
+| **Explainability** | Opaque similarity scores | Traceable reasoning path |
+| **Query Complexity** | Best for simple queries | Handles multi-step reasoning |
+| **Accuracy** | Depends on embeddings | 98.7% on FinanceBench |
+| **Traceability** | Approximate chunk locations | Exact page and section references |
+
+## State-of-the-Art Results
+
+PageIndex-powered systems achieve superior performance on professional document analysis:
+
+<Card title="FinanceBench Achievement" icon="trophy">
+  **98.7% accuracy** on the FinanceBench benchmark using reasoning-based RAG with PageIndex tree structures.
+  
+  This significantly outperforms traditional vector-based RAG solutions in financial document analysis.
+</Card>
+
+[Read the full benchmark results →](https://github.com/VectifyAI/Mafin2.5-FinanceBench)
+
+## Key Advantages
+
+### 1. True Relevance
+
+The LLM can determine if a section is **truly relevant** to the query, not just **similar**:
+
+```
+Query: "What caused the operating income decline in Domestic Parks?"
+
+Relevant (found by reasoning): "Experiences segment had adverse impact 
+due to Hurricanes Milton and Helene and pre-opening expenses..."
+
+Similar but irrelevant (might be found by vectors): "Operating income 
+for International Parks increased by 28%..."
+```
+
+### 2. Multi-Step Reasoning
+
+PageIndex can handle queries requiring multiple reasoning steps:
+
+```
+Query: "Compare Entertainment and Sports segment growth rates"
+
+Reasoning Steps:
+1. Locate Entertainment segment results
+2. Locate Sports segment results  
+3. Extract growth percentages
+4. Compare the two
+```
+
+### 3. Domain Expertise
+
+The LLM can apply domain knowledge during retrieval:
+
+```
+Query: "What were the regulatory changes?"
+
+Reasoning: "Regulatory changes would be in the 'Regulatory Developments' 
+section under 'Supervision and Regulation', not in 'Supervisory Developments'"
+```
+
+<Info>
+This level of understanding is impossible with vector similarity alone, which operates purely on mathematical distance between embeddings.
+</Info>
+
+## Human-Like Document Navigation
+
+PageIndex simulates how experts work with documents:
+
+1. **Scan the table of contents** to identify relevant sections
+2. **Use context and structure** to navigate to the right location
+3. **Apply domain knowledge** to interpret section relevance
+4. **Follow logical paths** through hierarchical information
+
+## When to Use Reasoning-Based RAG
+
+Reasoning-based RAG with PageIndex is especially powerful for:
+
+- **Professional documents** requiring domain expertise (financial, legal, technical)
+- **Long documents** exceeding LLM context windows
+- **Complex queries** requiring multi-step reasoning
+- **Scenarios requiring explainability** and traceability
+- **Hierarchically structured documents** (reports, manuals, textbooks)
+
+<Warning>
+For simple semantic search over unstructured text, traditional vector RAG may be sufficient and more cost-effective. Use reasoning-based RAG when accuracy and explainability are critical.
+</Warning>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Vectorless Approach" icon="database" href="/concepts/vectorless-approach">
+    Learn why PageIndex doesn't need vector databases
+  </Card>
+  <Card title="Try Vectorless RAG" icon="flask" href="/cookbook/vectorless-rag-pageindex">
+    Hands-on tutorial with working code examples
+  </Card>
+</CardGroup>

@@ -1,0 +1,359 @@
+---
+title: 'Generating Tree from PDF'
+description: 'Complete guide to generating tree structures from PDF documents'
+---
+
+## Overview
+
+PageIndex can automatically generate hierarchical tree structures from PDF documents by:
+1. Detecting and extracting table of contents (if present)
+2. Identifying section boundaries and page numbers
+3. Recursively building a hierarchical tree structure
+4. Optionally generating summaries and descriptions
+
+## Quick Start
+
+<Steps>
+  <Step title="Install PageIndex">
+    ```bash
+    pip install pageindex
+    ```
+  </Step>
+
+  <Step title="Basic Usage with CLI">
+    Generate a tree structure from a PDF:
+    ```bash
+    python run_pageindex.py --pdf_path document.pdf
+    ```
+    
+    This will create a JSON file at `./results/document_structure.json`.
+  </Step>
+
+  <Step title="Programmatic Usage">
+    Use the `page_index` function in your Python code:
+    ```python
+    from pageindex import page_index
+
+    result = page_index('document.pdf')
+    print(result['doc_name'])
+    print(result['structure'])
+    ```
+  </Step>
+</Steps>
+
+## CLI Parameters
+
+### Required Parameters
+
+<ParamField path="--pdf_path" type="string" required>
+  Path to the PDF file to process. Must have `.pdf` extension.
+  ```bash
+  python run_pageindex.py --pdf_path /path/to/document.pdf
+  ```
+</ParamField>
+
+### Model Configuration
+
+<ParamField path="--model" type="string" default="gpt-4o-2024-11-20">
+  LLM model to use for structure extraction and summary generation.
+  ```bash
+  python run_pageindex.py --pdf_path document.pdf --model gpt-4o-2024-11-20
+  ```
+</ParamField>
+
+### PDF-Specific Parameters
+
+<ParamField path="--toc-check-pages" type="integer" default="20">
+  Number of pages to check for table of contents detection.
+  ```bash
+  python run_pageindex.py --pdf_path document.pdf --toc-check-pages 30
+  ```
+</ParamField>
+
+<ParamField path="--max-pages-per-node" type="integer" default="10">
+  Maximum number of pages allowed per node. Larger nodes will be recursively subdivided.
+  ```bash
+  python run_pageindex.py --pdf_path document.pdf --max-pages-per-node 15
+  ```
+</ParamField>
+
+<ParamField path="--max-tokens-per-node" type="integer" default="20000">
+  Maximum number of tokens per node. Nodes exceeding this will be subdivided.
+  ```bash
+  python run_pageindex.py --pdf_path document.pdf --max-tokens-per-node 25000
+  ```
+</ParamField>
+
+### Content Enrichment Parameters
+
+<ParamField path="--if-add-node-id" type="string" default="yes">
+  Whether to add unique node IDs to each node. Options: `yes`, `no`.
+  ```bash
+  python run_pageindex.py --pdf_path document.pdf --if-add-node-id yes
+  ```
+</ParamField>
+
+<ParamField path="--if-add-node-summary" type="string" default="yes">
+  Whether to generate AI summaries for each node. Options: `yes`, `no`.
+  ```bash
+  python run_pageindex.py --pdf_path document.pdf --if-add-node-summary yes
+  ```
+</ParamField>
+
+<ParamField path="--if-add-doc-description" type="string" default="no">
+  Whether to generate an overall document description. Options: `yes`, `no`.
+  ```bash
+  python run_pageindex.py --pdf_path document.pdf --if-add-doc-description yes
+  ```
+</ParamField>
+
+<ParamField path="--if-add-node-text" type="string" default="no">
+  Whether to include full text content in each node. Options: `yes`, `no`.
+  ```bash
+  python run_pageindex.py --pdf_path document.pdf --if-add-node-text yes
+  ```
+</ParamField>
+
+## Programmatic API
+
+### Using `page_index()` Function
+
+The `page_index()` function provides a programmatic interface with the same configuration options:
+
+```python
+from pageindex import page_index
+
+result = page_index(
+    doc='document.pdf',
+    model='gpt-4o-2024-11-20',
+    toc_check_page_num=20,
+    max_page_num_each_node=10,
+    max_token_num_each_node=20000,
+    if_add_node_id='yes',
+    if_add_node_summary='yes',
+    if_add_doc_description='no',
+    if_add_node_text='no'
+)
+
+print(f"Document: {result['doc_name']}")
+if 'doc_description' in result:
+    print(f"Description: {result['doc_description']}")
+print(f"Structure: {result['structure']}")
+```
+
+### Function Parameters
+
+<ParamField path="doc" type="string | BytesIO" required>
+  Path to PDF file or BytesIO object containing PDF data.
+</ParamField>
+
+<ParamField path="model" type="string" default="gpt-4o-2024-11-20">
+  LLM model identifier for structure extraction.
+</ParamField>
+
+<ParamField path="toc_check_page_num" type="integer" default="20">
+  Number of pages to scan for table of contents.
+</ParamField>
+
+<ParamField path="max_page_num_each_node" type="integer" default="10">
+  Maximum pages per node before subdivision.
+</ParamField>
+
+<ParamField path="max_token_num_each_node" type="integer" default="20000">
+  Maximum tokens per node before subdivision.
+</ParamField>
+
+<ParamField path="if_add_node_id" type="string" default="yes">
+  Add unique identifiers to nodes (`yes`/`no`).
+</ParamField>
+
+<ParamField path="if_add_node_summary" type="string" default="yes">
+  Generate AI summaries for nodes (`yes`/`no`).
+</ParamField>
+
+<ParamField path="if_add_doc_description" type="string" default="no">
+  Generate document-level description (`yes`/`no`).
+</ParamField>
+
+<ParamField path="if_add_node_text" type="string" default="no">
+  Include full text in nodes (`yes`/`no`).
+</ParamField>
+
+## Processing Pipeline
+
+PageIndex follows this workflow when processing PDFs:
+
+<Steps>
+  <Step title="PDF Parsing">
+    Extract text and token counts from each page of the PDF.
+  </Step>
+
+  <Step title="TOC Detection">
+    Check the first N pages (default: 20) for table of contents:
+    - If TOC with page numbers is found, use it as the structure base
+    - If TOC without page numbers is found, match sections to physical pages
+    - If no TOC is found, extract structure directly from content
+  </Step>
+
+  <Step title="Structure Extraction">
+    Use LLM to identify hierarchical sections and their boundaries:
+    - Extract section titles and hierarchy levels
+    - Map sections to physical page indices
+    - Verify section boundaries are correct
+  </Step>
+
+  <Step title="Verification & Correction">
+    Validate the extracted structure:
+    - Check if section titles appear on their assigned pages
+    - Fix any incorrect page assignments
+    - Retry with alternative methods if accuracy is low
+  </Step>
+
+  <Step title="Recursive Subdivision">
+    For nodes exceeding size limits:
+    - Recursively extract sub-structure from large nodes
+    - Apply same verification process to sub-nodes
+  </Step>
+
+  <Step title="Enrichment (Optional)">
+    Add additional metadata:
+    - Generate node IDs (e.g., "0001", "0002")
+    - Extract full text for each node
+    - Generate AI summaries for each section
+    - Generate overall document description
+  </Step>
+</Steps>
+
+## Output Format
+
+The generated JSON structure contains:
+
+```json
+{
+  "doc_name": "document",
+  "doc_description": "High-level description of the document (optional)",
+  "structure": [
+    {
+      "title": "Section Title",
+      "node_id": "0001",
+      "start_index": 5,
+      "end_index": 12,
+      "summary": "AI-generated summary (optional)",
+      "text": "Full section text (optional)",
+      "nodes": [
+        {
+          "title": "Subsection Title",
+          "node_id": "0002",
+          "start_index": 5,
+          "end_index": 8,
+          "summary": "Subsection summary"
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Field Descriptions
+
+- **doc_name**: Filename without extension
+- **doc_description**: Overall document summary (if `if_add_doc_description=yes`)
+- **structure**: Array of top-level sections
+- **title**: Section heading
+- **node_id**: Unique identifier (if `if_add_node_id=yes`)
+- **start_index**: Starting page number (1-indexed)
+- **end_index**: Ending page number (inclusive)
+- **summary**: AI-generated section summary (if `if_add_node_summary=yes`)
+- **prefix_summary**: Summary of content before child sections (for parent nodes)
+- **text**: Full text content (if `if_add_node_text=yes`)
+- **nodes**: Child subsections (recursive structure)
+
+## Advanced Examples
+
+### Generate with Full Text and Summaries
+
+```bash
+python run_pageindex.py \
+  --pdf_path document.pdf \
+  --if-add-node-text yes \
+  --if-add-node-summary yes \
+  --if-add-doc-description yes
+```
+
+### Process Large Documents
+
+For large documents, increase the node size limits:
+
+```bash
+python run_pageindex.py \
+  --pdf_path large_document.pdf \
+  --max-pages-per-node 20 \
+  --max-tokens-per-node 30000 \
+  --toc-check-pages 50
+```
+
+### Minimal Processing (Structure Only)
+
+```bash
+python run_pageindex.py \
+  --pdf_path document.pdf \
+  --if-add-node-id no \
+  --if-add-node-summary no
+```
+
+## Tips & Best Practices
+
+<Tip>
+  **TOC Detection Range**: If your PDF has a long table of contents spanning many pages, increase `--toc-check-pages` to ensure complete detection.
+</Tip>
+
+<Tip>
+  **Node Size Tuning**: Adjust `--max-pages-per-node` and `--max-tokens-per-node` based on your use case:
+  - Smaller values: More granular structure, better for precise retrieval
+  - Larger values: Faster processing, better for high-level navigation
+</Tip>
+
+<Warning>
+  Enabling `--if-add-node-summary yes` significantly increases processing time and API costs as it requires LLM calls for each node.
+</Warning>
+
+<Tip>
+  **BytesIO Support**: You can process PDFs from memory:
+  ```python
+  from io import BytesIO
+  from pageindex import page_index
+  
+  with open('document.pdf', 'rb') as f:
+      pdf_bytes = BytesIO(f.read())
+  
+  result = page_index(pdf_bytes)
+  ```
+</Tip>
+
+## Troubleshooting
+
+### No TOC Found
+
+If PageIndex doesn't detect a TOC when one exists:
+- Increase `--toc-check-pages` to scan more pages
+- The TOC might be formatted unusually; PageIndex will fall back to content-based extraction
+
+### Incorrect Page Boundaries
+
+If section boundaries are inaccurate:
+- The verification system will attempt automatic correction
+- Check the processing logs for accuracy metrics
+- Consider adjusting node size parameters
+
+### Incomplete Structure
+
+If some sections are missing:
+- Verify the PDF has readable text (not scanned images)
+- Check if the document length exceeds validation thresholds
+- Review processing logs for truncation warnings
+
+## Next Steps
+
+- Learn about [Markdown processing](/guides/generating-tree-from-markdown)
+- Explore [configuration options](/guides/configuration-options) in detail
+- Implement [tree search strategies](/guides/tree-search-strategies) for retrieval

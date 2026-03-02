@@ -1,0 +1,321 @@
+---
+title: 'Vision-based RAG with PageIndex'
+description: 'Build a RAG system that uses PDF page images directly, without OCR'
+icon: 'eye'
+---
+
+<a href="https://colab.research.google.com/github/VectifyAI/PageIndex/blob/main/cookbook/vision_RAG_pageindex.ipynb" target="_blank">
+  <img src="https://img.shields.io/badge/Open_In_Colab-Vision_RAG-orange?style=for-the-badge&logo=googlecolab" alt="Open in Colab" />
+</a>
+
+## Introduction
+
+In modern document question answering (QA) systems, Optical Character Recognition (OCR) serves an important role by converting PDF pages into text that can be processed by Large Language Models (LLMs). Traditional OCR systems typically use a two-stage process that first detects the layout of a PDF — dividing it into text, tables, and images — and then recognizes and converts these elements into plain text.
+
+With the rise of vision-language models (VLMs) such as [Qwen-VL](https://github.com/QwenLM/Qwen3-VL) and [GPT-4.1](https://openai.com/index/gpt-4-1/), new end-to-end OCR models like [DeepSeek-OCR](https://github.com/deepseek-ai/DeepSeek-OCR) have emerged.
+
+This raises an important question:
+
+<Tip>
+**If a VLM can already process both the document images and the query to produce an answer directly, do we still need the intermediate OCR step?**
+</Tip>
+
+In this cookbook, we give a practical implementation of a vision-based question-answering system for long documents, without relying on OCR. Specifically, we use PageIndex as a reasoning-based retrieval layer and OpenAI's multimodal GPT-4.1 as the VLM for visual reasoning and answer generation.
+
+See the original [blog post](https://pageindex.ai/blog/do-we-need-ocr) for a more detailed discussion.
+
+## What You'll Learn
+
+This cookbook demonstrates a *minimal*, **vision-based vectorless RAG** pipeline for long documents with PageIndex, using only visual context from PDF pages. You will learn how to:
+
+- Build a PageIndex tree structure of a document
+- Perform reasoning-based retrieval with tree search
+- Extract PDF page images of retrieved tree nodes for visual context
+- Generate answers using VLM with PDF image inputs only (no OCR required)
+
+<Note>
+This example uses PageIndex's reasoning-based retrieval with OpenAI's multimodal GPT-4.1 model for both tree search and visual context reasoning.
+</Note>
+
+---
+
+## Setup
+
+<Steps>
+  <Step title="Install Dependencies">
+    Install the required packages:
+
+    ```bash
+    pip install --upgrade pageindex requests openai PyMuPDF
+    ```
+  </Step>
+
+  <Step title="Setup PageIndex Client">
+    Initialize the PageIndex client:
+
+    ```python
+    from pageindex import PageIndexClient
+    import pageindex.utils as utils
+
+    # Get your PageIndex API key from https://dash.pageindex.ai/api-keys
+    PAGEINDEX_API_KEY = "YOUR_PAGEINDEX_API_KEY"
+    pi_client = PageIndexClient(api_key=PAGEINDEX_API_KEY)
+    ```
+  </Step>
+
+  <Step title="Setup VLM">
+    Configure the OpenAI multimodal GPT-4.1 as the VLM:
+
+    ```python
+    import openai, fitz, base64, os
+
+    OPENAI_API_KEY = "YOUR_OPENAI_API_KEY"
+
+    async def call_vlm(prompt, image_paths=None, model="gpt-4.1"):
+        client = openai.AsyncOpenAI(api_key=OPENAI_API_KEY)
+        messages = [{"role": "user", "content": prompt}]
+        if image_paths:
+            content = [{"type": "text", "text": prompt}]
+            for image in image_paths:
+                if os.path.exists(image):
+                    with open(image, "rb") as image_file:
+                        image_data = base64.b64encode(image_file.read()).decode('utf-8')
+                        content.append({
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{image_data}"
+                            }
+                        })
+            messages[0]["content"] = content
+        response = await client.chat.completions.create(model=model, messages=messages, temperature=0)
+        return response.choices[0].message.content.strip()
+    ```
+  </Step>
+
+  <Step title="PDF Image Extraction Helper Functions">
+    Create helper functions to extract PDF page images:
+
+    ```python
+    def extract_pdf_page_images(pdf_path, output_dir="pdf_images"):
+        os.makedirs(output_dir, exist_ok=True)
+        pdf_document = fitz.open(pdf_path)
+        page_images = {}
+        total_pages = len(pdf_document)
+        for page_number in range(len(pdf_document)):
+            page = pdf_document.load_page(page_number)
+            # Convert page to image
+            mat = fitz.Matrix(2.0, 2.0)  # 2x zoom for better quality
+            pix = page.get_pixmap(matrix=mat)
+            img_data = pix.tobytes("jpeg")
+            image_path = os.path.join(output_dir, f"page_{page_number + 1}.jpg")
+            with open(image_path, "wb") as image_file:
+                image_file.write(img_data)
+            page_images[page_number + 1] = image_path
+            print(f"Saved page {page_number + 1} image: {image_path}")
+        pdf_document.close()
+        return page_images, total_pages
+
+    def get_page_images_for_nodes(node_list, node_map, page_images):
+        # Get PDF page images for retrieved nodes
+        image_paths = []
+        seen_pages = set()
+        for node_id in node_list:
+            node_info = node_map[node_id]
+            for page_num in range(node_info['start_index'], node_info['end_index'] + 1):
+                if page_num not in seen_pages:
+                    image_paths.append(page_images[page_num])
+                    seen_pages.add(page_num)
+        return image_paths
+    ```
+  </Step>
+</Steps>
+
+---
+
+## Step 1: PageIndex Tree Generation
+
+### Submit Document and Extract Images
+
+Download the document, extract page images, and submit for PageIndex tree generation:
+
+```python
+import os, requests
+
+pdf_url = "https://arxiv.org/pdf/1706.03762.pdf"  # "Attention Is All You Need" paper
+pdf_path = os.path.join("../data", pdf_url.split('/')[-1])
+os.makedirs(os.path.dirname(pdf_path), exist_ok=True)
+
+response = requests.get(pdf_url)
+with open(pdf_path, "wb") as f:
+    f.write(response.content)
+print(f"Downloaded {pdf_url}\n")
+
+# Extract page images from PDF
+print("Extracting page images...")
+page_images, total_pages = extract_pdf_page_images(pdf_path)
+print(f"Extracted {len(page_images)} page images from {total_pages} total pages.\n")
+
+doc_id = pi_client.submit_document(pdf_path)["doc_id"]
+print('Document Submitted:', doc_id)
+```
+
+### Get the Tree Structure
+
+Retrieve the generated tree:
+
+```python
+if pi_client.is_retrieval_ready(doc_id):
+    tree = pi_client.get_tree(doc_id, node_summary=True)['result']
+    print('Simplified Tree Structure of the Document:')
+    utils.print_tree(tree, exclude_fields=['text'])
+else:
+    print("Processing document, please try again later...")
+```
+
+**Example Output:**
+```python
+[{'title': 'Attention Is All You Need',
+  'node_id': '0000',
+  'page_index': 1,
+  'nodes': [{'title': 'Abstract', 'node_id': '0001', 'page_index': 1, ...},
+            {'title': '3 Model Architecture',
+             'node_id': '0004',
+             'page_index': 2,
+             'nodes': [{'title': '3.2 Attention',
+                        'node_id': '0006',
+                        'nodes': [{'title': '3.2.1 Scaled Dot-Product Attention',
+                                   'node_id': '0007',
+                                   'page_index': 4, ...}]}]}]}
+]
+```
+
+---
+
+## Step 2: Reasoning-Based Retrieval
+
+### Identify Relevant Nodes
+
+Use the VLM for tree search to identify nodes that might contain relevant context:
+
+```python
+import json
+
+query = "What is the last operation in the Scaled Dot-Product Attention figure?"
+
+tree_without_text = utils.remove_fields(tree.copy(), fields=['text'])
+
+search_prompt = f"""
+You are given a question and a tree structure of a document.
+Each node contains a node id, node title, and a corresponding summary.
+Your task is to find all tree nodes that are likely to contain the answer to the question.
+
+Question: {query}
+
+Document tree structure:
+{json.dumps(tree_without_text, indent=2)}
+
+Please reply in the following JSON format:
+{{
+    "thinking": "<Your thinking process on which nodes are relevant to the question>",
+    "node_list": ["node_id_1", "node_id_2", ..., "node_id_n"]
+}}
+Directly return the final JSON structure. Do not output anything else.
+"""
+
+tree_search_result = await call_vlm(search_prompt)
+```
+
+### View Retrieved Nodes
+
+Print the retrieved nodes and reasoning process:
+
+```python
+node_map = utils.create_node_mapping(tree, include_page_ranges=True, max_page=total_pages)
+tree_search_result_json = json.loads(tree_search_result)
+
+print('Reasoning Process:\n')
+utils.print_wrapped(tree_search_result_json['thinking'])
+
+print('\nRetrieved Nodes:\n')
+for node_id in tree_search_result_json["node_list"]:
+    node_info = node_map[node_id]
+    node = node_info['node']
+    start_page = node_info['start_index']
+    end_page = node_info['end_index']
+    page_range = start_page if start_page == end_page else f"{start_page}-{end_page}"
+    print(f"Node ID: {node['node_id']}\t Pages: {page_range}\t Title: {node['title']}")
+```
+
+**Output:**
+```
+Reasoning Process:
+
+The question asks about the last operation in the Scaled Dot-Product Attention figure. The most
+relevant section is the one that describes Scaled Dot-Product Attention in detail, including its
+computation and the figure itself...
+
+Retrieved Nodes:
+
+Node ID: 0006	 Pages: 3-4	 Title: 3.2 Attention
+Node ID: 0007	 Pages: 4	 Title: 3.2.1 Scaled Dot-Product Attention
+```
+
+### Get PDF Page Images
+
+Retrieve the corresponding PDF page images:
+
+```python
+retrieved_nodes = tree_search_result_json["node_list"]
+retrieved_page_images = get_page_images_for_nodes(retrieved_nodes, node_map, page_images)
+print(f'\nRetrieved {len(retrieved_page_images)} PDF page image(s) for visual context.')
+```
+
+---
+
+## Step 3: Answer Generation with Vision
+
+### Generate Answer Using VLM
+
+Generate an answer using the VLM with only PDF page images as visual context:
+
+```python
+# Generate answer using VLM with only PDF page images as visual context
+answer_prompt = f"""
+Answer the question based on the images of the document pages as context.
+
+Question: {query}
+
+Provide a clear, concise answer based only on the context provided.
+"""
+
+print('Generated answer using VLM with retrieved PDF page images as visual context:\n')
+answer = await call_vlm(answer_prompt, retrieved_page_images)
+utils.print_wrapped(answer)
+```
+
+**Output:**
+```
+Generated answer using VLM with retrieved PDF page images as visual context:
+
+The last operation in the **Scaled Dot-Product Attention** figure is a **MatMul** (matrix
+multiplication). This operation multiplies the attention weights (after softmax) by the value matrix
+\( V \).
+```
+
+---
+
+## Conclusion
+
+In this cookbook, we demonstrated a *minimal* **vision-based, vectorless RAG pipeline** using PageIndex and a VLM. The system retrieves relevant pages by reasoning over the document's hierarchical tree index and answers questions directly from PDF images — **no OCR required**.
+
+<Tip>
+If you're interested in building your own **reasoning-based document QA system**, try [PageIndex Chat](https://chat.pageindex.ai), or integrate via [PageIndex MCP](https://pageindex.ai/mcp) and the [Cloud API](/api/cloud-api-overview).
+</Tip>
+
+## Learn More
+
+- [Blog Post: Do We Still Need OCR?](https://pageindex.ai/blog/do-we-need-ocr)
+- [Homepage](https://vectify.ai)
+- [PageIndex Chat](https://chat.pageindex.ai)
+- [GitHub](https://github.com/VectifyAI/PageIndex)
+- [Discord](https://discord.com/invite/VuXuf29EUj)

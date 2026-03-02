@@ -1,0 +1,249 @@
+---
+title: 'page_index_main()'
+description: 'Core function for generating PageIndex tree structures with explicit configuration'
+---
+
+## Function Signature
+
+```python
+def page_index_main(doc, opt=None)
+```
+
+**Source:** `pageindex/page_index.py:1058`
+
+## Description
+
+The `page_index_main()` function is the core processing function that generates a hierarchical tree structure from PDF documents. Unlike `page_index()`, it requires an explicit configuration object (`opt`) rather than individual parameters.
+
+This function orchestrates the entire PageIndex generation pipeline:
+1. Validates input (PDF file path or BytesIO object)
+2. Extracts text and tokens from PDF pages
+3. Detects and processes table of contents (if present)
+4. Generates hierarchical structure
+5. Optionally adds node IDs, summaries, and descriptions
+
+## Parameters
+
+<ParamField path="doc" type="str or BytesIO" required>
+  Path to PDF file or BytesIO object containing PDF data. Must be:
+  - A valid file path ending in `.pdf`, OR
+  - A `BytesIO` object containing PDF data
+  
+  Raises `ValueError` if input type is unsupported.
+</ParamField>
+
+<ParamField path="opt" type="config (SimpleNamespace)" default="None">
+  Configuration object containing processing options. If `None`, default configuration is loaded from `config.yaml`. The config object should contain:
+  
+  - `model`: OpenAI model name
+  - `toc_check_page_num`: Pages to check for TOC
+  - `max_page_num_each_node`: Max pages per node
+  - `max_token_num_each_node`: Max tokens per node
+  - `if_add_node_id`: Whether to add node IDs ("yes"/"no")
+  - `if_add_node_summary`: Whether to generate summaries ("yes"/"no")
+  - `if_add_doc_description`: Whether to generate doc description ("yes"/"no")
+  - `if_add_node_text`: Whether to include text ("yes"/"no")
+</ParamField>
+
+## Return Value
+
+<ResponseField name="result" type="dict">
+  Dictionary containing the PageIndex structure:
+  
+  <Expandable title="Return structure">
+    <ResponseField name="doc_name" type="str">
+      Document name extracted from file path or PDF metadata
+    </ResponseField>
+    
+    <ResponseField name="doc_description" type="str" optional>
+      One-sentence AI-generated description (only if `opt.if_add_doc_description == "yes"` and `opt.if_add_node_summary == "yes"`)
+    </ResponseField>
+    
+    <ResponseField name="structure" type="list[dict]">
+      Hierarchical tree structure. Each node contains:
+      
+      <Expandable title="Node structure">
+        <ResponseField name="title" type="str">
+          Section or chapter title
+        </ResponseField>
+        
+        <ResponseField name="node_id" type="str" optional>
+          Sequential node identifier (e.g., "0001", "0002") - only if `if_add_node_id == "yes"`
+        </ResponseField>
+        
+        <ResponseField name="start_index" type="int">
+          Starting page number (1-indexed)
+        </ResponseField>
+        
+        <ResponseField name="end_index" type="int">
+          Ending page number (1-indexed, inclusive)
+        </ResponseField>
+        
+        <ResponseField name="summary" type="str" optional>
+          AI-generated summary of the section - only if `if_add_node_summary == "yes"`
+        </ResponseField>
+        
+        <ResponseField name="text" type="str" optional>
+          Full text content of the section - only if `if_add_node_text == "yes"`
+        </ResponseField>
+        
+        <ResponseField name="nodes" type="list[dict]" optional>
+          Child nodes (subsections) with the same structure
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Example Usage
+
+### Using ConfigLoader
+
+```python
+from pageindex import page_index_main
+from pageindex.utils import ConfigLoader
+
+# Load default configuration
+config_loader = ConfigLoader()
+opt = config_loader.load()
+
+# Process PDF
+result = page_index_main("document.pdf", opt)
+
+print(f"Document: {result['doc_name']}")
+for node in result['structure']:
+    print(f"- {node['title']} (pages {node['start_index']}-{node['end_index']})")
+```
+
+### Custom Configuration
+
+```python
+from pageindex import page_index_main
+from pageindex.utils import ConfigLoader
+from types import SimpleNamespace
+
+# Create custom configuration
+config_loader = ConfigLoader()
+user_config = {
+    'model': 'gpt-4o-2024-11-20',
+    'toc_check_page_num': 25,
+    'max_page_num_each_node': 12,
+    'if_add_node_summary': 'yes',
+    'if_add_doc_description': 'yes'
+}
+opt = config_loader.load(user_config)
+
+result = page_index_main("report.pdf", opt)
+
+if 'doc_description' in result:
+    print(f"Description: {result['doc_description']}")
+```
+
+### Processing BytesIO
+
+```python
+from io import BytesIO
+from pageindex import page_index_main
+from pageindex.utils import ConfigLoader
+
+# Load PDF from bytes
+with open("document.pdf", "rb") as f:
+    pdf_data = BytesIO(f.read())
+
+config_loader = ConfigLoader()
+opt = config_loader.load()
+
+result = page_index_main(pdf_data, opt)
+```
+
+### Minimal Configuration
+
+```python
+from pageindex import page_index_main
+from types import SimpleNamespace
+
+# Minimal config - fastest processing
+opt = SimpleNamespace(
+    model='gpt-4o-2024-11-20',
+    toc_check_page_num=20,
+    max_page_num_each_node=10,
+    max_token_num_each_node=20000,
+    if_add_node_id='no',
+    if_add_node_summary='no',
+    if_add_doc_description='no',
+    if_add_node_text='no'
+)
+
+result = page_index_main("document.pdf", opt)
+```
+
+### With Full Features
+
+```python
+from pageindex import page_index_main
+from types import SimpleNamespace
+
+# Full-featured config - slower but comprehensive
+opt = SimpleNamespace(
+    model='gpt-4o-2024-11-20',
+    toc_check_page_num=30,
+    max_page_num_each_node=15,
+    max_token_num_each_node=25000,
+    if_add_node_id='yes',
+    if_add_node_summary='yes',
+    if_add_doc_description='yes',
+    if_add_node_text='yes'
+)
+
+result = page_index_main("document.pdf", opt)
+
+# Access full text content
+for node in result['structure']:
+    print(f"\nNode: {node['node_id']} - {node['title']}")
+    print(f"Summary: {node['summary']}")
+    print(f"Text length: {len(node['text'])} characters")
+```
+
+## Processing Pipeline
+
+The function executes these steps internally:
+
+1. **Validation**: Checks if input is a valid PDF file or BytesIO object
+2. **Text Extraction**: Parses PDF and extracts text with token counts per page
+3. **TOC Detection**: Searches for table of contents in first N pages
+4. **Structure Generation**: Creates hierarchical tree using:
+   - Detected TOC with page numbers, OR
+   - Detected TOC without page numbers, OR
+   - AI-generated structure (no TOC found)
+5. **Verification**: Validates generated structure accuracy
+6. **Recursive Subdivision**: Splits large nodes exceeding thresholds
+7. **Enrichment**: Adds node IDs, summaries, and descriptions if requested
+
+## Error Handling
+
+```python
+from pageindex import page_index_main
+from pageindex.utils import ConfigLoader
+
+try:
+    result = page_index_main("document.pdf")
+except ValueError as e:
+    print(f"Invalid input: {e}")
+except FileNotFoundError:
+    print("PDF file not found")
+except Exception as e:
+    print(f"Processing error: {e}")
+```
+
+## Performance Considerations
+
+- Processing time: ~1-5 minutes for typical documents (50-200 pages)
+- Memory usage: Proportional to document size and enabled features
+- API costs: Higher with summaries enabled; scales with document length
+- Large nodes (>10 pages, >20k tokens) are recursively subdivided
+
+## See Also
+
+- [page_index()](/api/page-index) - Simplified function with individual parameters
+- [ConfigLoader](/api/config) - Configuration management
+- [CLI Reference](/api/cli-reference) - Command-line interface

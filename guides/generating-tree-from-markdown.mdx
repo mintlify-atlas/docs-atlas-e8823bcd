@@ -1,0 +1,434 @@
+---
+title: 'Generating Tree from Markdown'
+description: 'Complete guide to generating tree structures from markdown documents'
+---
+
+## Overview
+
+PageIndex can generate hierarchical tree structures from markdown documents by parsing the heading structure. Unlike PDFs, markdown has explicit hierarchy through heading levels (`#`, `##`, `###`, etc.), making structure extraction faster and more precise.
+
+## Quick Start
+
+<Steps>
+  <Step title="Install PageIndex">
+    ```bash
+    pip install pageindex
+    ```
+  </Step>
+
+  <Step title="Basic Usage with CLI">
+    Generate a tree structure from a markdown file:
+    ```bash
+    python run_pageindex.py --md_path document.md
+    ```
+    
+    This will create a JSON file at `./results/document_structure.json`.
+  </Step>
+
+  <Step title="Programmatic Usage">
+    Use the `md_to_tree` function in your Python code:
+    ```python
+    import asyncio
+    from pageindex.page_index_md import md_to_tree
+
+    result = asyncio.run(md_to_tree('document.md'))
+    print(result['doc_name'])
+    print(result['structure'])
+    ```
+  </Step>
+</Steps>
+
+## CLI Parameters
+
+### Required Parameters
+
+<ParamField path="--md_path" type="string" required>
+  Path to the markdown file to process. Must have `.md` or `.markdown` extension.
+  ```bash
+  python run_pageindex.py --md_path /path/to/document.md
+  ```
+</ParamField>
+
+### Model Configuration
+
+<ParamField path="--model" type="string" default="gpt-4o-2024-11-20">
+  LLM model to use for summary generation (only used if `--if-add-node-summary yes`).
+  ```bash
+  python run_pageindex.py --md_path document.md --model gpt-4o-2024-11-20
+  ```
+</ParamField>
+
+### Markdown-Specific Parameters
+
+<ParamField path="--if-thinning" type="string" default="no">
+  Whether to apply tree thinning to merge small sections. Options: `yes`, `no`.
+  
+  Tree thinning merges child sections into their parent if the total token count is below the threshold.
+  ```bash
+  python run_pageindex.py --md_path document.md --if-thinning yes
+  ```
+</ParamField>
+
+<ParamField path="--thinning-threshold" type="integer" default="5000">
+  Minimum token threshold for tree thinning. Nodes with fewer tokens (including all descendants) will be merged with their parent.
+  ```bash
+  python run_pageindex.py --md_path document.md --if-thinning yes --thinning-threshold 3000
+  ```
+</ParamField>
+
+<ParamField path="--summary-token-threshold" type="integer" default="200">
+  Token threshold for generating summaries. Sections shorter than this will use their full text instead of generating a summary.
+  ```bash
+  python run_pageindex.py --md_path document.md --summary-token-threshold 300
+  ```
+</ParamField>
+
+### Content Enrichment Parameters
+
+<ParamField path="--if-add-node-id" type="string" default="yes">
+  Whether to add unique node IDs to each node. Options: `yes`, `no`.
+  ```bash
+  python run_pageindex.py --md_path document.md --if-add-node-id yes
+  ```
+</ParamField>
+
+<ParamField path="--if-add-node-summary" type="string" default="yes">
+  Whether to generate AI summaries for each node. Options: `yes`, `no`.
+  ```bash
+  python run_pageindex.py --md_path document.md --if-add-node-summary yes
+  ```
+</ParamField>
+
+<ParamField path="--if-add-doc-description" type="string" default="no">
+  Whether to generate an overall document description. Options: `yes`, `no`.
+  ```bash
+  python run_pageindex.py --md_path document.md --if-add-doc-description yes
+  ```
+</ParamField>
+
+<ParamField path="--if-add-node-text" type="string" default="no">
+  Whether to include full text content in each node. Options: `yes`, `no`.
+  ```bash
+  python run_pageindex.py --md_path document.md --if-add-node-text yes
+  ```
+</ParamField>
+
+## Programmatic API
+
+### Using `md_to_tree()` Function
+
+The `md_to_tree()` function is an async function that processes markdown files:
+
+```python
+import asyncio
+from pageindex.page_index_md import md_to_tree
+
+result = asyncio.run(md_to_tree(
+    md_path='document.md',
+    if_thinning=False,
+    min_token_threshold=5000,
+    if_add_node_summary='yes',
+    summary_token_threshold=200,
+    model='gpt-4o-2024-11-20',
+    if_add_doc_description='no',
+    if_add_node_text='no',
+    if_add_node_id='yes'
+))
+
+print(f"Document: {result['doc_name']}")
+if 'doc_description' in result:
+    print(f"Description: {result['doc_description']}")
+print(f"Structure: {result['structure']}")
+```
+
+### Function Parameters
+
+<ParamField path="md_path" type="string" required>
+  Path to the markdown file.
+</ParamField>
+
+<ParamField path="if_thinning" type="boolean" default="False">
+  Whether to apply tree thinning to merge small sections.
+</ParamField>
+
+<ParamField path="min_token_threshold" type="integer" default="5000">
+  Minimum token count for keeping sections separate (used with thinning).
+</ParamField>
+
+<ParamField path="if_add_node_summary" type="string" default="yes">
+  Generate AI summaries for nodes (`yes`/`no`).
+</ParamField>
+
+<ParamField path="summary_token_threshold" type="integer" default="200">
+  Token threshold below which full text is used instead of summary.
+</ParamField>
+
+<ParamField path="model" type="string" default="gpt-4o-2024-11-20">
+  LLM model identifier for summary generation.
+</ParamField>
+
+<ParamField path="if_add_doc_description" type="string" default="no">
+  Generate document-level description (`yes`/`no`).
+</ParamField>
+
+<ParamField path="if_add_node_text" type="string" default="no">
+  Include full text in nodes (`yes`/`no`).
+</ParamField>
+
+<ParamField path="if_add_node_id" type="string" default="yes">
+  Add unique identifiers to nodes (`yes`/`no`).
+</ParamField>
+
+## Processing Pipeline
+
+PageIndex follows this workflow when processing markdown:
+
+<Steps>
+  <Step title="Header Extraction">
+    Parse markdown to identify all headers (`#`, `##`, `###`, etc.):
+    - Skip headers inside code blocks (triple backticks)
+    - Record header level and line number
+    - Extract header text
+  </Step>
+
+  <Step title="Content Extraction">
+    For each header, extract its associated content:
+    - Content starts from the header line
+    - Content ends at the next header of any level (or end of file)
+    - Store both content and line number references
+  </Step>
+
+  <Step title="Tree Thinning (Optional)">
+    If `if_thinning=True`:
+    - Calculate token counts for each section (including all descendants)
+    - Merge sections below the threshold into their parent
+    - Update parent text to include merged child content
+  </Step>
+
+  <Step title="Tree Construction">
+    Build hierarchical structure based on heading levels:
+    - Level 1 (`#`) becomes root nodes
+    - Level 2 (`##`) becomes children of level 1
+    - And so on for deeper levels
+    - Assign sequential node IDs
+  </Step>
+
+  <Step title="Enrichment (Optional)">
+    Add additional metadata:
+    - Generate AI summaries for sections (if `if_add_node_summary=yes`)
+    - Generate document description (if `if_add_doc_description=yes`)
+    - Include/exclude full text based on `if_add_node_text`
+  </Step>
+</Steps>
+
+## Output Format
+
+The generated JSON structure contains:
+
+```json
+{
+  "doc_name": "document",
+  "doc_description": "High-level description of the document (optional)",
+  "structure": [
+    {
+      "title": "Main Section",
+      "node_id": "0001",
+      "line_num": 5,
+      "summary": "AI-generated summary (optional)",
+      "text": "Full section text (optional)",
+      "nodes": [
+        {
+          "title": "Subsection",
+          "node_id": "0002",
+          "line_num": 12,
+          "summary": "Subsection summary",
+          "text": "Subsection content"
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Field Descriptions
+
+- **doc_name**: Filename without extension
+- **doc_description**: Overall document summary (if `if_add_doc_description=yes`)
+- **structure**: Array of top-level sections
+- **title**: Section heading text
+- **node_id**: Unique identifier (if `if_add_node_id=yes`)
+- **line_num**: Line number where the section starts (1-indexed)
+- **summary**: AI-generated section summary (if `if_add_node_summary=yes`)
+- **prefix_summary**: Summary of content before child sections (for parent nodes with children)
+- **text**: Full markdown content of the section (if `if_add_node_text=yes`)
+- **nodes**: Child subsections (recursive structure)
+
+## Tree Thinning
+
+Tree thinning is a markdown-specific feature that optimizes the tree structure for retrieval:
+
+### How It Works
+
+1. **Token Counting**: Calculate total tokens for each section including all descendants
+2. **Threshold Check**: If a section's total tokens < threshold, it's a candidate for merging
+3. **Merging**: Child sections are merged into the parent's text
+4. **Removal**: Child nodes are removed from the tree structure
+
+### Example
+
+**Before Thinning** (with threshold = 5000 tokens):
+```
+# Main Section (500 tokens)
+  ## Subsection A (200 tokens)
+  ## Subsection B (300 tokens)
+  Total: 1000 tokens < 5000
+```
+
+**After Thinning**:
+```
+# Main Section (1000 tokens, includes A and B content)
+  [No child nodes]
+```
+
+### When to Use Thinning
+
+<Tip>
+  Use tree thinning when:
+  - Your markdown has many small sections that should be treated as a unit
+  - You want to reduce tree depth for simpler navigation
+  - Retrieval systems should return larger, more complete content chunks
+</Tip>
+
+<Warning>
+  Don't use thinning when:
+  - Fine-grained section access is important
+  - Each subsection should be independently retrievable
+  - You want to preserve the original document structure exactly
+</Warning>
+
+## Advanced Examples
+
+### Generate with Thinning and Summaries
+
+```bash
+python run_pageindex.py \
+  --md_path document.md \
+  --if-thinning yes \
+  --thinning-threshold 3000 \
+  --if-add-node-summary yes \
+  --summary-token-threshold 200
+```
+
+### Full Text Extraction (No Summaries)
+
+```bash
+python run_pageindex.py \
+  --md_path document.md \
+  --if-add-node-text yes \
+  --if-add-node-summary no
+```
+
+### Complete Processing with Description
+
+```bash
+python run_pageindex.py \
+  --md_path document.md \
+  --if-add-node-summary yes \
+  --if-add-doc-description yes \
+  --if-add-node-text yes
+```
+
+### Minimal Processing (Structure Only)
+
+```bash
+python run_pageindex.py \
+  --md_path document.md \
+  --if-add-node-id yes \
+  --if-add-node-summary no \
+  --if-add-node-text no
+```
+
+## Tips & Best Practices
+
+<Tip>
+  **Code Block Handling**: PageIndex automatically skips headers inside code blocks (triple backticks). Make sure your code blocks are properly closed to avoid false header detection.
+</Tip>
+
+<Tip>
+  **Thinning Threshold**: Start with the default (5000 tokens) and adjust based on your content:
+  - Technical docs with short sections: 2000-3000 tokens
+  - Narrative content: 5000-8000 tokens
+  - Research papers: 3000-5000 tokens
+</Tip>
+
+<Tip>
+  **Summary Threshold**: The `summary-token-threshold` should be set based on when a summary is more useful than full text:
+  - Short sections (less than 200 tokens): Use full text
+  - Medium sections (200-1000 tokens): Summaries can help
+  - Long sections (more than 1000 tokens): Summaries are essential
+</Tip>
+
+<Warning>
+  Enabling `--if-add-node-summary yes` significantly increases processing time and API costs as it requires LLM calls for each node.
+</Warning>
+
+## Performance Considerations
+
+### Speed
+
+Markdown processing is generally faster than PDF processing because:
+- No OCR or PDF parsing required
+- Header structure is explicit (no LLM calls for structure extraction)
+- Only summaries require LLM calls (if enabled)
+
+### Cost
+
+For a typical markdown document:
+- **Structure extraction**: Free (no LLM calls)
+- **With summaries**: 1 LLM call per section
+- **With doc description**: 1 additional LLM call for the entire document
+
+### Token Calculation
+
+PageIndex uses the model's tokenizer to count tokens. Different models have different tokenization:
+- GPT-4: ~750 words per 1000 tokens
+- Claude: ~700 words per 1000 tokens
+
+## Comparison: Markdown vs PDF
+
+| Feature | Markdown | PDF |
+|---------|----------|-----|
+| **Speed** | Fast | Slower |
+| **Structure Extraction** | Explicit from headers | Requires LLM |
+| **Accuracy** | Very high | High (after verification) |
+| **Token Reference** | Line numbers | Page numbers |
+| **Thinning** | Supported | Not applicable |
+| **TOC Detection** | Not needed | Automatic |
+
+## Troubleshooting
+
+### Headers Not Detected
+
+If some headers are missing:
+- Check that headers have a space after `#`: `# Title` not `#Title`
+- Ensure headers are not inside code blocks
+- Verify the markdown file is properly formatted
+
+### Incorrect Hierarchy
+
+If the tree structure seems wrong:
+- Check your heading levels are consistent (don't skip levels)
+- Example: Don't go from `#` to `###` without `##`
+
+### File Not Found Error
+
+Make sure:
+- The file path is correct
+- The file has `.md` or `.markdown` extension
+- You have read permissions for the file
+
+## Next Steps
+
+- Learn about [PDF processing](/guides/generating-tree-from-pdf)
+- Explore all [configuration options](/guides/configuration-options)
+- Implement [tree search strategies](/guides/tree-search-strategies) for retrieval

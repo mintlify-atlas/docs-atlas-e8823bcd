@@ -1,0 +1,286 @@
+---
+title: 'PageIndex Chat Quickstart'
+description: 'Get started with PageIndex Chat API for document question answering'
+icon: 'messages'
+---
+
+<a href="https://colab.research.google.com/github/VectifyAI/PageIndex/blob/main/cookbook/pageIndex_chat_quickstart.ipynb" target="_blank">
+  <img src="https://img.shields.io/badge/Open_In_Colab-Chat_Quickstart-orange?style=for-the-badge&logo=googlecolab" alt="Open in Colab" />
+</a>
+
+## Introduction
+
+Similarity-based RAG based on Vector-DB has shown big limitations in recent AI applications. Reasoning-based or agentic retrieval has become important in current developments.
+
+[PageIndex Chat](https://chat.pageindex.ai/) is an AI assistant that allows you to chat with multiple super-long documents without worrying about limited context or context rot problems. It is based on [PageIndex](https://pageindex.ai/blog/pageindex-intro), a vectorless reasoning-based RAG framework which gives more transparent and reliable results like a human expert.
+
+<img src="https://docs.pageindex.ai/images/cookbook/vectorless-rag.png" alt="Vectorless RAG" width="70%" />
+
+You can now access PageIndex Chat with API or SDK.
+
+## What You'll Learn
+
+This cookbook demonstrates a simple, minimal example of doing document analysis with PageIndex Chat API. You will learn how to:
+
+- Upload documents to PageIndex
+- Check document processing status
+- Ask questions about documents using the Chat API
+- Work with streaming responses
+
+<Note>
+This example uses NVIDIA's recently released 10-Q report to demonstrate the capabilities.
+</Note>
+
+---
+
+## Setup
+
+<Steps>
+  <Step title="Install PageIndex SDK">
+    Install the PageIndex SDK:
+
+    ```bash
+    pip install --upgrade pageindex
+    ```
+  </Step>
+
+  <Step title="Setup PageIndex Client">
+    Initialize the client with your API key:
+
+    ```python
+    from pageindex import PageIndexClient
+
+    # Get your PageIndex API key from https://dash.pageindex.ai/api-keys
+    PAGEINDEX_API_KEY = "Your API KEY"
+    pi_client = PageIndexClient(api_key=PAGEINDEX_API_KEY)
+    ```
+
+    <Tip>
+    Get your API key from [https://dash.pageindex.ai/api-keys](https://dash.pageindex.ai/api-keys)
+    </Tip>
+  </Step>
+</Steps>
+
+---
+
+## Upload a Document
+
+Download and submit a document for processing:
+
+```python
+import os, requests
+
+pdf_url = "https://d18rn0p25nwr6d.cloudfront.net/CIK-0001045810/13e6981b-95ed-4aac-a602-ebc5865d0590.pdf"
+pdf_path = os.path.join("../data", pdf_url.split('/')[-1])
+os.makedirs(os.path.dirname(pdf_path), exist_ok=True)
+
+response = requests.get(pdf_url)
+with open(pdf_path, "wb") as f:
+    f.write(response.content)
+print(f"Downloaded {pdf_url}")
+
+doc_id = pi_client.submit_document(pdf_path)["doc_id"]
+print('Document Submitted:', doc_id)
+```
+
+**Output:**
+```
+Downloaded https://d18rn0p25nwr6d.cloudfront.net/CIK-0001045810/13e6981b-95ed-4aac-a602-ebc5865d0590.pdf
+Document Submitted: pi-cmi73f7r7022y09nwn40paaom
+```
+
+---
+
+## Check Processing Status
+
+Verify that the document processing is complete:
+
+```python
+from pprint import pprint
+
+doc_info = pi_client.get_document(doc_id)
+pprint(doc_info)
+
+if doc_info['status'] == 'completed':
+    print(f"\n Document ready! ({doc_info['pageNum']} pages)")
+elif doc_info['status'] == 'processing':
+    print("\n Document is still processing. Please wait and check again.")
+```
+
+**Output:**
+```python
+{'createdAt': '2025-11-20T07:11:44.669000',
+ 'description': "This document is NVIDIA Corporation's Form 10-Q Quarterly "
+                'Report for the period ending October 26, 2025, detailing its '
+                'financial performance, operational results, market risks, and '
+                'legal proceedings.',
+ 'id': 'pi-cmi73f7r7022y09nwn40paaom',
+ 'name': '13e6981b-95ed-4aac-a602-ebc5865d0590.pdf',
+ 'pageNum': 48,
+ 'status': 'completed'}
+
+ Document ready! (48 pages)
+```
+
+<Note>
+Processing time depends on document length. The status will be `'processing'` while PageIndex generates the document tree structure, and `'completed'` when ready.
+</Note>
+
+---
+
+## Ask Questions
+
+Use the Chat API to ask questions about the document:
+
+```python
+query = "what is the revenue? Also show me which page I can find it."
+
+for chunk in pi_client.chat_completions(
+    messages=[{"role": "user", "content": query}],
+    doc_id=doc_id,
+    stream=True
+):
+    print(chunk, end='', flush=True)
+```
+
+**Sample Output:**
+```
+I'll help you find the revenue information from NVIDIA's 10-Q report. Let me first check the document 
+structure to locate the financial information.
+
+Now let me get the content from pages that contain the revenue information. Based on the structure, 
+revenue information should be in the financial statements section, which appears early in the document. 
+Let me check pages 3-8 which should contain the Condensed Consolidated Statements of Income.
+
+Perfect! I found the revenue information. Let me provide you with the details:
+
+## Revenue Information from NVIDIA's 10-Q Report
+
+**You can find the revenue on Page 3** of the document in the **Condensed Consolidated Statements of Income**.
+
+### Revenue Details:
+
+**For the Three Months Ended October 26, 2025 (Q3 FY2026):**
+- **Revenue: $57,006 million** ($57.0 billion)
+- Compared to Q3 FY2025 (October 27, 2024): $35,082 million
+
+**For the Nine Months Ended October 26, 2025 (First 9 months of FY2026):**
+- **Revenue: $147,811 million** ($147.8 billion)
+- Compared to same period FY2025: $91,166 million
+
+### Key Highlights:
+- Q3 revenue increased by **62.5%** year-over-year ($21.9 billion increase)
+- Nine-month revenue increased by **62.1%** year-over-year ($56.6 billion increase)
+- This represents strong growth driven primarily by Data Center compute and networking platforms for AI 
+  and accelerated computing, with Blackwell architectures being a major contributor
+
+The revenue figures are clearly displayed at the top of the Condensed Consolidated Statements of Income 
+on **Page 3** of the 10-Q report.
+```
+
+---
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Long Document Support" icon="file-lines">
+    Handle documents with hundreds of pages without context limitations
+  </Card>
+  <Card title="Transparent Reasoning" icon="lightbulb">
+    See which pages and sections the answer comes from
+  </Card>
+  <Card title="Streaming Responses" icon="stream">
+    Get real-time streaming responses for better user experience
+  </Card>
+  <Card title="Multi-turn Conversations" icon="comments">
+    Support for conversational context across multiple questions
+  </Card>
+</CardGroup>
+
+---
+
+## Advanced Usage
+
+### Non-Streaming Mode
+
+For simpler use cases, you can disable streaming:
+
+```python
+response = pi_client.chat_completions(
+    messages=[{"role": "user", "content": "What is the revenue?"}],
+    doc_id=doc_id,
+    stream=False
+)
+
+print(response)
+```
+
+### Multi-turn Conversations
+
+Maintain conversation history for follow-up questions:
+
+```python
+messages = [
+    {"role": "user", "content": "What is the revenue?"},
+    {"role": "assistant", "content": "The revenue for Q3 FY2026 is $57,006 million..."},
+    {"role": "user", "content": "How does this compare to last year?"}
+]
+
+for chunk in pi_client.chat_completions(
+    messages=messages,
+    doc_id=doc_id,
+    stream=True
+):
+    print(chunk, end='', flush=True)
+```
+
+---
+
+## What Makes PageIndex Different?
+
+Unlike traditional RAG systems that rely on vector similarity search:
+
+<Steps>
+  <Step title="Document Structure">
+    PageIndex builds a hierarchical tree structure of your document, preserving natural sections and organization
+  </Step>
+
+  <Step title="Reasoning-Based Retrieval">
+    Instead of vector similarity, PageIndex uses LLM reasoning to navigate the document tree and find relevant content
+  </Step>
+
+  <Step title="Transparent Results">
+    You can see exactly which pages and sections were used to generate the answer, making it easy to verify and trace back to the source
+  </Step>
+
+  <Step title="No Context Limits">
+    Handle super-long documents without worrying about context window limitations or context rot
+  </Step>
+</Steps>
+
+---
+
+## Learn More
+
+<CardGroup cols={2}>
+  <Card title="Try PageIndex Chat" icon="browser" href="https://chat.pageindex.ai">
+    Use the web interface to chat with your documents
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/cloud-api-overview">
+    Explore the full API documentation
+  </Card>
+  <Card title="PageIndex MCP" icon="plug" href="https://pageindex.ai/mcp">
+    Integrate PageIndex with Model Context Protocol
+  </Card>
+  <Card title="GitHub Repository" icon="github" href="https://github.com/VectifyAI/PageIndex">
+    Check out open-source implementations
+  </Card>
+</CardGroup>
+
+---
+
+## Next Steps
+
+- Explore [Vectorless RAG](/cookbook/vectorless-rag-pageindex) for custom implementations
+- Try [Vision-based RAG](/cookbook/vision-rag-pageindex) for OCR-free document processing
+- Learn about [Agentic Retrieval](/cookbook/agentic-retrieval) patterns
